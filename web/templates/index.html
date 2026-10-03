@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SHORTFORM / монтажная станция</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>SHORTFORM<span class="brand-dot">.</span></span></div>
+      <div class="topbar-right"><span class="online-dot"></span> ЛОКАЛЬНАЯ СТУДИЯ <span class="topbar-divider"></span> V1.0</div>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="hero-title">
+        <div class="intro-copy">
+          <p class="eyebrow"><span class="eyebrow-line"></span> ВИДЕО → СМЫСЛ → КЛИПЫ</p>
+          <h1 id="hero-title">Длинное видео.<br><em>Короткий момент.</em></h1>
+          <p class="intro-text">Загрузи MP4, выбери ИИ для поиска сильных фрагментов и получи готовые вертикальные ролики. Всё начинается здесь — на твоём компьютере.</p>
+        </div>
+        <div class="intro-art" aria-hidden="true">
+          <div class="art-crosshair art-crosshair-a">+</div><div class="art-crosshair art-crosshair-b">+</div>
+          <div class="art-frame"><div class="art-video"><div class="art-play"></div><div class="art-caption">01 / THE MOMENT</div></div></div>
+          <div class="art-orbit">9:16 <span>●</span> READY TO CUT</div>
+        </div>
+      </section>
+
+      <section class="workspace" aria-label="Создание клипов">
+        <div class="workspace-head"><div><span class="section-index">01 / СОЗДАТЬ</span><h2>Новый проект</h2></div><span class="workspace-note">ОДНО ВИДЕО · ДО 10 КЛИПОВ</span></div>
+        <form id="job-form" enctype="multipart/form-data" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="editor-grid">
+            <div class="editor-main">
+              <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="Выбрать видео MP4">
+                <input id="video-input" type="file" name="video" accept=".mp4,video/mp4" required>
+                <div class="drop-icon" aria-hidden="true"><span>↥</span></div>
+                <div class="drop-title">Перетащи видео сюда</div>
+                <div class="drop-subtitle">или <span>выбери MP4 на компьютере</span></div>
+                <div id="selected-file" class="selected-file">MP4 · до 4 ГБ · обрабатывается локально</div>
+                <div class="drop-corner corner-tl"></div><div class="drop-corner corner-tr"></div><div class="drop-corner corner-bl"></div><div class="drop-corner corner-br"></div>
+              </div>
+              <div class="input-row">
+                <label class="field"><span class="field-label">КОЛИЧЕСТВО КЛИПОВ</span><select name="num_clips" id="num-clips"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></label>
+                <div class="field field-info"><span class="field-label">ФОРМАТ</span><div class="field-static">9:16 <span>вертикальное видео</span></div></div>
+              </div>
+            </div>
+
+            <aside class="editor-side">
+              <div class="panel-header"><span class="panel-icon">✳</span><div><div class="panel-kicker">МОЗГ ПРОЕКТА</div><h3>Выбери ИИ</h3></div></div>
+              <p class="panel-copy">ИИ анализирует расшифровку и решает, какие моменты стоит вырезать. Ключ нужен только на время запуска.</p>
+              <label class="field"><span class="field-label">СЕРВИС</span><select id="provider" name="provider"><option value="openai">OpenAI</option><option value="gemini">Google Gemini</option><option value="openrouter">OpenRouter</option><option value="groq">Groq</option><option value="custom">Свой совместимый API</option></select></label>
+              <label class="field"><span class="field-label">МОДЕЛЬ</span><input id="model" name="model" value="gpt-4o-mini" required maxlength="120" autocomplete="off" spellcheck="false"></label>
+              <label class="field"><span class="field-label">API-КЛЮЧ <small>или из .env</small></span><span class="password-wrap"><input id="api-key" name="api_key" type="password" placeholder="Вставь ключ сюда" autocomplete="off" spellcheck="false"><button id="toggle-key" class="key-toggle" type="button" aria-label="Показать API-ключ">ПОКАЗАТЬ</button></span></label>
+              <label id="base-url-field" class="field hidden"><span class="field-label">BASE URL</span><input id="base-url" name="base_url" type="url" placeholder="https://api.example.com/v1" autocomplete="off" spellcheck="false"></label>
+              <p class="key-note"><span>↗</span> Ключ не сохраняется в браузере или проекте. Для следующего запуска его нужно ввести снова.</p>
+            </aside>
+          </div>
+
+          <div class="publish-bar">
+            <div class="publish-title"><span class="section-index">02 / ОТПРАВИТЬ</span><h3>Публикация <span>необязательно</span></h3></div>
+            <div class="publish-options"><label><input type="checkbox" name="platforms" value="youtube"><span>YouTube Shorts</span></label><label><input type="checkbox" name="platforms" value="vk"><span>VK Видео</span></label><label><input type="checkbox" name="platforms" value="telegram"><span>Telegram</span></label></div>
+            <label class="privacy-select"><span>ВИДИМОСТЬ</span><select id="privacy" name="privacy"><option value="private">Приватно</option><option value="unlisted">По ссылке</option><option value="public">Публично</option></select></label>
+            <label class="dry-run"><input type="checkbox" name="dry_run"><span>Тест без загрузки</span></label>
+          </div>
+          <div class="action-row"><p>Создание клипов может занять несколько минут. Публикация начнётся только на отмеченных площадках.</p><button id="start-button" class="start-button" type="submit"><span>СОЗДАТЬ КЛИПЫ</span><span class="button-arrow">↗</span></button></div>
+        </form>
+      </section>
+
+      <section id="results" class="results" aria-live="polite" hidden>
+        <div class="workspace-head"><div><span class="section-index">03 / РЕЗУЛЬТАТ</span><h2>Твои клипы</h2></div><span id="job-state" class="result-state">ОЖИДАНИЕ</span></div>
+        <div id="status-message" class="status-message"></div>
+        <div id="clips" class="clips"></div>
+      </section>
+    </main>
+    <footer class="footer"><span>SHORTFORM / LOCAL EDITION</span><span>Сделано для моментов, которые нельзя пропустить.</span></footer>
+  </div>
+</body>
+</html>
