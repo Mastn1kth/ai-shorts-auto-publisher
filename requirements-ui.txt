@@ -1,3 +1,4 @@
 -r requirements-local.txt
 Flask>=3.0,<4
 keyring>=25.0,<27
+pywebview>=6.2,<7

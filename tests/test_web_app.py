@@ -71,6 +71,16 @@ class WebAppTests(unittest.TestCase):
         from datetime import datetime
         self.assertEqual((datetime.fromisoformat(due[1]) - datetime.fromisoformat(due[0])).total_seconds(), 3600)
 
+    def test_next_job_starts_one_hour_after_existing_queue(self):
+        from datetime import datetime, timedelta
+        due = (datetime.now().astimezone() + timedelta(hours=2)).isoformat()
+        web_app._jobs["other"] = {
+            "publish_state": "pending", "dry_run": False,
+            "shorts": [{"scheduled_at": due}],
+        }
+        next_at = datetime.fromisoformat(web_app._queue_start(60, ""))
+        self.assertEqual((next_at - datetime.fromisoformat(due)).total_seconds(), 3600)
+
     def test_generation_saves_descriptions_and_queue_without_api_key(self):
         with tempfile.TemporaryDirectory() as directory:
             with patch.object(web_app, "JOBS_DIR", Path(directory)):

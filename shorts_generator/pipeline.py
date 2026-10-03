@@ -28,9 +28,9 @@ def _run_local(
     from .local.llm import call_local_llm
     from .local.transcriber import transcribe_local
 
-    source_path = download_youtube_local(youtube_url, fmt=download_format)
+    source_path = download_youtube_local(youtube_url, fmt=download_format, out_dir=output_dir)
 
-    transcript = transcribe_local(source_path, language=language)
+    transcript = transcribe_local(source_path, language=language, cache_dir=output_dir)
     if not transcript["segments"]:
         raise RuntimeError(
             "Whisper produced no segments. The video may have no detectable speech."

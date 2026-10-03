@@ -6,6 +6,7 @@ import secrets
 import json
 import subprocess
 import time
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from threading import Lock, Thread
@@ -23,19 +24,24 @@ from shorts_generator.publishers.credentials import get_secret, save_secret
 from shorts_generator.publishers.youtube import YouTubePublisher
 
 
-ROOT = Path(__file__).resolve().parent
-JOBS_DIR = ROOT / "output" / "ui-jobs"
-UI_CREDENTIALS_DIR = ROOT / "output" / "credentials"
+ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+if getattr(sys, "frozen", False):
+    DATA_ROOT = Path(os.getenv("LOCALAPPDATA", Path.home())) / "ShortformStudio"
+else:
+    DATA_ROOT = ROOT / "output"
+JOBS_DIR = DATA_ROOT / "ui-jobs"
+UI_CREDENTIALS_DIR = DATA_ROOT / "credentials"
 YOUTUBE_CLIENT_FILE = UI_CREDENTIALS_DIR / "client_secret.json"
 YOUTUBE_TOKEN_FILE = UI_CREDENTIALS_DIR / "youtube-token.json"
 if YOUTUBE_CLIENT_FILE.is_file():
     os.environ["YOUTUBE_CLIENT_SECRET_FILE"] = str(YOUTUBE_CLIENT_FILE)
     os.environ["YOUTUBE_TOKEN_FILE"] = str(YOUTUBE_TOKEN_FILE)
+os.environ.setdefault("PUBLISH_LEDGER_FILE", str(DATA_ROOT / "publishing-ledger.json"))
 CSRF_TOKEN = secrets.token_urlsafe(32)
 MAX_UPLOAD_BYTES = 4 * 1024 * 1024 * 1024
 PROVIDERS = {"openai", "gemini", "openrouter", "groq", "custom"}
 
-app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
+app = Flask(__name__, template_folder=str(ROOT / "web" / "templates"), static_folder=str(ROOT / "web" / "static"))
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
 _jobs = {}
 _lock = Lock()
@@ -59,11 +65,27 @@ def _schedule_times(count: int, interval_minutes: int, start_at: str) -> list:
     now = datetime.now().astimezone()
     if start_at:
         start = datetime.fromisoformat(start_at).astimezone()
-        if start < now:
+        if start < now - timedelta(seconds=2):
             raise ValueError("Время первой публикации должно быть в будущем")
+        start = max(start, now)
     else:
         start = now
     return [(start + timedelta(minutes=index * interval_minutes)).isoformat() for index in range(count)]
+
+
+def _queue_start(interval_minutes: int, start_at: str) -> str:
+    """Keep clips from separate jobs one interval apart as well."""
+    requested = datetime.fromisoformat(_schedule_times(1, interval_minutes, start_at)[0])
+    for other in _jobs.values():
+        if other.get("publish_state") != "pending" or other.get("dry_run"):
+            continue
+        for short in other.get("shorts", []):
+            scheduled = short.get("scheduled_at")
+            if scheduled:
+                due = datetime.fromisoformat(scheduled)
+                if due >= requested:
+                    requested = due + timedelta(minutes=interval_minutes)
+    return requested.isoformat()
 
 
 def _thumbnail(video_path: str, target: Path) -> bool:
@@ -176,7 +198,7 @@ def _run_job(job_id: str, settings: dict) -> None:
         job["clip_paths"] = [short.get("clip_url") for short in result["shorts"]]
         due_times = _schedule_times(
             len(result["shorts"]), settings["interval_minutes"],
-            "" if settings["dry_run"] else settings["start_at"],
+            "" if settings["dry_run"] else _queue_start(settings["interval_minutes"], settings["start_at"]),
         ) if settings["platforms"] else []
         job["shorts"] = [
             {
