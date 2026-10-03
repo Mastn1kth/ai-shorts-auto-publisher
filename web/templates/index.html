@@ -12,17 +12,9 @@
   <div class="site-shell">
     <header class="topbar">
       <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>SHORTFORM<span class="brand-dot">.</span></span></div>
-      <div class="topbar-right"><span class="online-dot"></span> ПРИЛОЖЕНИЕ WINDOWS</div>
     </header>
 
     <main>
-      <section class="intro" aria-labelledby="hero-title">
-        <div class="intro-copy">
-          <h1 id="hero-title">Видео → <em>клипы</em></h1>
-          <p class="intro-text">Добавь MP4 или ссылку YouTube. Готовые ролики появятся здесь.</p>
-        </div>
-      </section>
-
       <details id="connections" class="connections">
         <summary><span><strong>Настройки: ключи и каналы</strong></span><span class="summary-action">ОТКРЫТЬ ↗</span></summary>
         <div class="connections-grid">
@@ -36,7 +28,6 @@
       </details>
 
       <section class="workspace" aria-label="Создание клипов">
-        <div class="workspace-head"><div><h2>Создать клипы</h2></div></div>
         <form id="job-form" enctype="multipart/form-data" novalidate>
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <div class="editor-grid">
