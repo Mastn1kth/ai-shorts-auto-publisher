@@ -19,6 +19,8 @@ def _account_marker(platform: str) -> str:
             return f"group:{group}"
         token = os.getenv("VK_ACCESS_TOKEN", "").strip()
         return "user-token:" + hashlib.sha256(token.encode("utf-8")).hexdigest()
+    if platform == "telegram":
+        return "chat:" + os.getenv("TELEGRAM_CHAT_ID", "").strip().lower()
     raise ValueError(f"Unsupported platform: {platform}")
 
 

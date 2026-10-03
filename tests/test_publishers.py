@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 from shorts_generator.publishers.base import PublisherError
 from shorts_generator.publishers.ledger import PublishingLedger
 from shorts_generator.publishers.service import publish_shorts, validate_publish_request
+from shorts_generator.publishers.telegram import TelegramPublisher
 from shorts_generator.publishers.vk import VKPublisher
 from shorts_generator.pipeline import generate_shorts
 import main as cli
@@ -26,6 +27,11 @@ class PublishRequestTests(unittest.TestCase):
     def test_unlisted_vk_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "VK Video does not support"):
             validate_publish_request(["vk"], "unlisted")
+
+    def test_telegram_requires_explicit_public_visibility(self):
+        with self.assertRaisesRegex(ValueError, "Telegram publishing requires"):
+            validate_publish_request(["telegram"], "private")
+        self.assertEqual(validate_publish_request(["telegram"], "public"), ["telegram"])
 
     def test_failed_render_is_failed_publication(self):
         result = publish_shorts([{"clip_url": None, "error": "render failed"}], ["youtube", "vk"])
@@ -61,6 +67,47 @@ class VKTests(unittest.TestCase):
                 VKPublisher(access_token="test-token").publish(path, {"title": "Test"})
             self.assertEqual(post.call_args_list[0].kwargs["data"]["access_token"], "test-token")
             self.assertNotIn("test-token", str(post.call_args_list[0].args))
+
+
+class TelegramTests(unittest.TestCase):
+    @patch("shorts_generator.publishers.telegram.requests.post")
+    def test_upload_returns_channel_link(self, post):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "short.mp4")
+            with open(path, "wb") as video:
+                video.write(b"fake-mp4")
+            post.return_value.json.return_value = {"ok": True, "result": {"message_id": 42}}
+            result = TelegramPublisher(bot_token="secret", chat_id="@mychannel").publish(
+                path, {"caption": "Test"}, privacy_status="public"
+            )
+            self.assertEqual(result["url"], "https://t.me/mychannel/42")
+            self.assertEqual(post.call_args.kwargs["data"]["chat_id"], "@mychannel")
+            self.assertEqual(post.call_args.kwargs["files"]["video"][2], "video/mp4")
+
+    @patch("shorts_generator.publishers.telegram.requests.post")
+    def test_request_failure_does_not_leak_token(self, post):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "short.mp4")
+            with open(path, "wb") as video:
+                video.write(b"fake-mp4")
+            post.side_effect = __import__("requests").RequestException("https://api.telegram.org/botsecret/sendVideo failed")
+            with self.assertRaises(PublisherError) as raised:
+                TelegramPublisher(bot_token="secret", chat_id="@mychannel").publish(
+                    path, {"caption": "Test"}, privacy_status="public"
+                )
+            self.assertNotIn("secret", str(raised.exception))
+
+    @patch("shorts_generator.publishers.telegram.requests.post")
+    def test_large_video_is_rejected_before_request(self, post):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "short.mp4")
+            with open(path, "wb") as video:
+                video.truncate(50 * 1024 * 1024 + 1)
+            with self.assertRaisesRegex(PublisherError, "50 MB"):
+                TelegramPublisher(bot_token="secret", chat_id="@mychannel").publish(
+                    path, {"caption": "Test"}, privacy_status="public"
+                )
+            post.assert_not_called()
 
 
 class LedgerTests(unittest.TestCase):

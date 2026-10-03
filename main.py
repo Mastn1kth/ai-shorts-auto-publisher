@@ -33,7 +33,7 @@ def main() -> int:
     parser.add_argument("--language", default=None, help="Force Whisper language code, e.g. 'en' (default: auto-detect)")
     parser.add_argument("--output-json", default=None, help="Write the full result JSON to this path")
     parser.add_argument(
-        "--publish", nargs="+", choices=["youtube", "vk"],
+        "--publish", nargs="+", choices=["youtube", "vk", "telegram"],
         help="Publish rendered clips to one or more platforms",
     )
     parser.add_argument(

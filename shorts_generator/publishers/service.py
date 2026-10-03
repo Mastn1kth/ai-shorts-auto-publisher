@@ -8,6 +8,7 @@ import requests
 
 from .base import build_metadata
 from .ledger import PublishingLedger
+from .telegram import TelegramPublisher
 from .vk import VKPublisher
 from .youtube import YouTubePublisher
 
@@ -16,18 +17,20 @@ MAX_REMOTE_CLIP_BYTES = 1_000_000_000
 
 def validate_publish_request(platforms: Iterable[str], privacy_status: str) -> List[str]:
     platforms = list(dict.fromkeys(p.strip().lower() for p in platforms if p.strip()))
-    invalid = sorted(set(platforms) - {"youtube", "vk"})
+    invalid = sorted(set(platforms) - {"youtube", "vk", "telegram"})
     if invalid:
         raise ValueError(f"Unsupported publishing platforms: {', '.join(invalid)}")
     if privacy_status not in {"private", "unlisted", "public"}:
         raise ValueError("publish_privacy must be private, unlisted, or public")
     if "vk" in platforms and privacy_status == "unlisted":
         raise ValueError("VK Video does not support unlisted visibility")
+    if "telegram" in platforms and privacy_status != "public":
+        raise ValueError("Telegram publishing requires --publish-privacy public")
     return platforms
 
 
 def _publisher(platform: str):
-    return {"youtube": YouTubePublisher, "vk": VKPublisher}[platform]()
+    return {"youtube": YouTubePublisher, "vk": VKPublisher, "telegram": TelegramPublisher}[platform]()
 
 
 def publish_shorts(
@@ -59,7 +62,7 @@ def publish_shorts(
                     continue
                 publish_path = video_path
                 # API mode returns hosted clip URLs; upload-based publishers need a local file.
-                if not dry_run and platform in {"youtube", "vk"} and str(video_path).startswith(("http://", "https://")):
+                if not dry_run and platform in {"youtube", "vk", "telegram"} and str(video_path).startswith(("http://", "https://")):
                     if not video_path.startswith("https://"):
                         raise ValueError("Hosted clip URL must use HTTPS")
                     download = requests.get(video_path, stream=True, timeout=(30, 300))
