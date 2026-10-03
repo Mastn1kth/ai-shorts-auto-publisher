@@ -70,10 +70,10 @@ def main() -> int:
     print("\n" + "=" * 72)
     print(f"Mode:          {result.get('mode', args.mode)}")
     print(f"Source video:  {result['source_video_url']}")
-    print(f"Highlights:    {len(result['highlights'])} candidates → kept top {len(result['shorts'])}")
+    print(f"Highlights:    {len(result['highlights'])} candidates -> kept top {len(result['shorts'])}")
     print("=" * 72)
     for i, s in enumerate(result["shorts"], 1):
-        print(f"\n#{i}  score={s.get('score')}  {s.get('start_time'):.1f}s → {s.get('end_time'):.1f}s")
+        print(f"\n#{i}  score={s.get('score')}  {s.get('start_time'):.1f}s -> {s.get('end_time'):.1f}s")
         print(f"     title:  {s.get('title')}")
         print(f"     hook:   {s.get('hook_sentence')}")
         if s.get("clip_url"):

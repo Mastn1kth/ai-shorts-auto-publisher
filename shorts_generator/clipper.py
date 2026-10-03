@@ -17,7 +17,7 @@ def crop_clip(source_video_url: str, start_time: float, end_time: float, aspect_
         "end_time": float(end_time),
         "aspect_ratio": aspect_ratio,
     }
-    print(f"[clip] {start_time:.1f}s → {end_time:.1f}s @ {aspect_ratio}", flush=True)
+    print(f"[clip] {start_time:.1f}s -> {end_time:.1f}s @ {aspect_ratio}", flush=True)
     result = muapi.run("autocrop", payload, label=f"autocrop({start_time:.0f}-{end_time:.0f})")
     return _extract_video_url(result)
 
