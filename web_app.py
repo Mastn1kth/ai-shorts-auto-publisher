@@ -180,6 +180,7 @@ def _run_job(job_id: str, settings: dict) -> None:
     global _active_job
     job = _jobs[job_id]
     job["status"] = "running"
+    _save_job(job)
     try:
         llm = make_llm(settings["provider"], settings["model"], settings["api_key"], settings["base_url"])
         result = generate_shorts(
@@ -276,6 +277,10 @@ def restore_jobs() -> None:
             _jobs[job["id"]] = job
             if job.get("status") == "completed" and job.get("publish_state") == "pending":
                 Thread(target=_publish_job, args=(job["id"],), daemon=True).start()
+            elif job.get("status") in {"queued", "running"}:
+                job["status"] = "failed"
+                job["error"] = "Обработка прервана закрытием программы. Добавьте исходное видео заново."
+                _save_job(job)
         except (OSError, ValueError, KeyError, TypeError):
             continue
 
@@ -407,6 +412,7 @@ def create_job():
             _jobs[job_id]["source"] = str(folder / "source.mp4")
         else:
             _jobs[job_id]["source"] = raw_url
+        _save_job(_jobs[job_id])
     except Exception:
         with _lock:
             _active_job = None

@@ -134,6 +134,16 @@ class WebAppTests(unittest.TestCase):
         web_app._jobs["recent"] = {"id": "recent", "status": "completed"}
         self.assertEqual(self.client.get("/api/jobs/latest").get_json()["id"], "recent")
 
+    def test_interrupted_generation_is_reported_after_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / "interrupted"
+            folder.mkdir()
+            (folder / "job.json").write_text('{"id":"interrupted","status":"running","shorts":[]}', encoding="utf-8")
+            with patch.object(web_app, "JOBS_DIR", Path(directory)):
+                web_app.restore_jobs()
+            self.assertEqual(web_app._jobs["interrupted"]["status"], "failed")
+            self.assertIn("прервана", (folder / "job.json").read_text(encoding="utf-8"))
+
     def test_saving_platform_tokens_requires_csrf_and_uses_keyring(self):
         denied = self.client.post("/api/connections/tokens", data={"VK_ACCESS_TOKEN": "secret"})
         self.assertEqual(denied.status_code, 403)
