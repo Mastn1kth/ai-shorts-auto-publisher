@@ -19,10 +19,18 @@ from shorts_generator.local.llm import make_llm
 from shorts_generator.local.downloader import _extract_youtube_video_id
 from shorts_generator.publishers.service import validate_publish_request
 from shorts_generator.publishers.service import publish_shorts
+from shorts_generator.publishers.credentials import get_secret, save_secret
+from shorts_generator.publishers.youtube import YouTubePublisher
 
 
 ROOT = Path(__file__).resolve().parent
 JOBS_DIR = ROOT / "output" / "ui-jobs"
+UI_CREDENTIALS_DIR = ROOT / "output" / "credentials"
+YOUTUBE_CLIENT_FILE = UI_CREDENTIALS_DIR / "client_secret.json"
+YOUTUBE_TOKEN_FILE = UI_CREDENTIALS_DIR / "youtube-token.json"
+if YOUTUBE_CLIENT_FILE.is_file():
+    os.environ["YOUTUBE_CLIENT_SECRET_FILE"] = str(YOUTUBE_CLIENT_FILE)
+    os.environ["YOUTUBE_TOKEN_FILE"] = str(YOUTUBE_TOKEN_FILE)
 CSRF_TOKEN = secrets.token_urlsafe(32)
 MAX_UPLOAD_BYTES = 4 * 1024 * 1024 * 1024
 PROVIDERS = {"openai", "gemini", "openrouter", "groq", "custom"}
@@ -33,6 +41,7 @@ _jobs = {}
 _lock = Lock()
 _active_job = None
 _publish_lock = Lock()
+_oauth_state = {"status": "idle", "error": None}
 
 
 def _save_job(job: dict) -> None:
@@ -247,6 +256,88 @@ def restore_jobs() -> None:
                 Thread(target=_publish_job, args=(job["id"],), daemon=True).start()
         except (OSError, ValueError, KeyError, TypeError):
             continue
+
+
+def _connection_status() -> dict:
+    return {
+        "youtube_client_ready": Path(os.getenv("YOUTUBE_CLIENT_SECRET_FILE", "client_secret.json")).is_file(),
+        "youtube_token_ready": Path(os.getenv("YOUTUBE_TOKEN_FILE", "youtube-token.json")).is_file(),
+        "youtube_auth": dict(_oauth_state),
+        "vk_token_saved": bool(get_secret("VK_ACCESS_TOKEN")),
+        "vk_group_id": get_secret("VK_GROUP_ID"),
+        "telegram_token_saved": bool(get_secret("TELEGRAM_BOT_TOKEN")),
+        "telegram_chat_id": get_secret("TELEGRAM_CHAT_ID"),
+    }
+
+
+def _authorize_youtube() -> None:
+    try:
+        publisher = YouTubePublisher()
+        publisher._service()
+        _oauth_state.update(status="connected", error=None)
+    except Exception as exc:
+        _oauth_state.update(status="failed", error=_safe_error(exc, ""))
+
+
+@app.get("/api/connections")
+def get_connections():
+    return jsonify(_connection_status())
+
+
+@app.post("/api/connections/tokens")
+def save_connections():
+    if request.form.get("csrf_token") != CSRF_TOKEN:
+        return jsonify(error="Недействительный запрос. Обновите страницу."), 403
+    allowed = {"VK_ACCESS_TOKEN", "VK_GROUP_ID", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"}
+    for name in allowed:
+        value = request.form.get(name, "").strip()
+        if len(value) > 4096 or "\n" in value or "\r" in value:
+            return jsonify(error=f"Некорректное значение {name}"), 400
+    try:
+        for name in allowed:
+            value = request.form.get(name, "").strip()
+            if value:
+                save_secret(name, value)
+    except Exception:
+        return jsonify(error="Не удалось сохранить ключ в системном хранилище. Проверьте Windows Credential Manager."), 500
+    return jsonify(_connection_status())
+
+
+@app.post("/api/connections/youtube/client")
+def save_youtube_client():
+    if request.form.get("csrf_token") != CSRF_TOKEN:
+        return jsonify(error="Недействительный запрос. Обновите страницу."), 403
+    upload = request.files.get("client_file")
+    if not upload or not upload.filename or not upload.filename.lower().endswith(".json"):
+        return jsonify(error="Выберите JSON-файл OAuth-клиента Google"), 400
+    contents = upload.read(1024 * 1024 + 1)
+    if len(contents) > 1024 * 1024:
+        return jsonify(error="Файл OAuth слишком большой"), 400
+    try:
+        payload = json.loads(contents)
+        installed = payload["installed"]
+        if not installed.get("client_id") or not installed.get("client_secret"):
+            raise ValueError()
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return jsonify(error="Нужен OAuth JSON типа Desktop, созданный в Google Cloud"), 400
+    UI_CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+    YOUTUBE_CLIENT_FILE.write_bytes(contents)
+    os.environ["YOUTUBE_CLIENT_SECRET_FILE"] = str(YOUTUBE_CLIENT_FILE)
+    os.environ["YOUTUBE_TOKEN_FILE"] = str(YOUTUBE_TOKEN_FILE)
+    return jsonify(_connection_status())
+
+
+@app.post("/api/connections/youtube/authorize")
+def authorize_youtube():
+    if request.form.get("csrf_token") != CSRF_TOKEN:
+        return jsonify(error="Недействительный запрос. Обновите страницу."), 403
+    if not _connection_status()["youtube_client_ready"]:
+        return jsonify(error="Сначала добавьте OAuth JSON типа Desktop"), 400
+    if _oauth_state["status"] == "pending":
+        return jsonify(error="Авторизация уже запущена"), 409
+    _oauth_state.update(status="pending", error=None)
+    Thread(target=_authorize_youtube, daemon=True).start()
+    return jsonify(status="pending"), 202
 
 
 @app.get("/")

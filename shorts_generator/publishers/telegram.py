@@ -7,6 +7,7 @@ from typing import Dict, Optional
 import requests
 
 from .base import PublisherError
+from .credentials import get_secret
 
 
 MAX_VIDEO_BYTES = 50 * 1024 * 1024
@@ -16,8 +17,8 @@ class TelegramPublisher:
     name = "telegram"
 
     def __init__(self, bot_token: Optional[str] = None, chat_id: Optional[str] = None):
-        self.bot_token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-        self.chat_id = chat_id or os.getenv("TELEGRAM_CHAT_ID", "").strip()
+        self.bot_token = bot_token or get_secret("TELEGRAM_BOT_TOKEN")
+        self.chat_id = chat_id or get_secret("TELEGRAM_CHAT_ID")
 
     def publish(self, video_path: str, metadata: Dict, privacy_status: str = "public", dry_run: bool = False) -> Dict:
         if dry_run:

@@ -6,14 +6,15 @@ from typing import Dict, Optional
 import requests
 
 from .base import PublisherError
+from .credentials import get_secret
 
 
 class VKPublisher:
     name = "vk"
 
     def __init__(self, access_token: Optional[str] = None, group_id: Optional[str] = None):
-        self.access_token = access_token or os.getenv("VK_ACCESS_TOKEN", "").strip()
-        self.group_id = group_id or os.getenv("VK_GROUP_ID", "").strip()
+        self.access_token = access_token or get_secret("VK_ACCESS_TOKEN")
+        self.group_id = group_id or get_secret("VK_GROUP_ID")
         self.api_version = os.getenv("VK_API_VERSION", "5.199")
         self.api_url = "https://api.vk.com/method/video.save"
 

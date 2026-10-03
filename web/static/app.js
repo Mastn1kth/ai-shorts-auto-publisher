@@ -23,6 +23,75 @@ const modelExamples = {
   custom: 'model-name'
 };
 
+function connectionFeedback(message, isError = false) {
+  const target = document.querySelector('#connection-message');
+  target.textContent = message;
+  target.classList.toggle('error', isError);
+}
+
+async function connectionRequest(url, data) {
+  const response = await fetch(url, { method: 'POST', body: data });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || 'Не удалось сохранить настройки');
+  return payload;
+}
+
+function updateConnections(status) {
+  document.querySelector('#youtube-status').textContent = status.youtube_auth.status === 'connected'
+    ? 'Google подключён'
+    : status.youtube_auth.status === 'pending' ? 'Ожидаем вход через Google…'
+      : status.youtube_token_ready ? 'Токен есть · права не проверены' : status.youtube_client_ready ? 'OAuth JSON добавлен' : 'Не подключён';
+  document.querySelector('#vk-status').textContent = status.vk_token_saved ? 'Токен сохранён · права не проверены' : 'Не подключён';
+  document.querySelector('#telegram-status').textContent = status.telegram_token_saved && status.telegram_chat_id
+    ? `Бот сохранён · ${status.telegram_chat_id}` : 'Не подключён';
+  if (status.youtube_auth.status === 'failed') connectionFeedback(status.youtube_auth.error || 'Ошибка входа Google', true);
+}
+
+async function refreshConnections() {
+  try {
+    const response = await fetch('/api/connections');
+    if (!response.ok) throw new Error('Не удалось проверить подключения');
+    const status = await response.json();
+    updateConnections(status);
+    if (status.youtube_auth.status === 'pending') setTimeout(refreshConnections, 2500);
+  } catch (error) {
+    connectionFeedback(error.message, true);
+  }
+}
+
+document.querySelectorAll('.connection-token-form').forEach((settingsForm) => settingsForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const status = await connectionRequest('/api/connections/tokens', new FormData(settingsForm));
+    settingsForm.querySelectorAll('input[type="password"]').forEach((input) => { input.value = ''; });
+    updateConnections(status);
+    connectionFeedback('Данные сохранены в системном хранилище. Проверь публикацию пробным роликом.');
+  } catch (error) {
+    connectionFeedback(error.message, true);
+  }
+}));
+document.querySelector('#youtube-client-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const status = await connectionRequest('/api/connections/youtube/client', new FormData(event.currentTarget));
+    updateConnections(status);
+    connectionFeedback('OAuth JSON добавлен. Теперь нажми «Авторизоваться через Google».');
+  } catch (error) {
+    connectionFeedback(error.message, true);
+  }
+});
+document.querySelector('#youtube-auth-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    await connectionRequest('/api/connections/youtube/authorize', new FormData(event.currentTarget));
+    connectionFeedback('Откроется окно Google. Подтверди доступ к своему каналу.');
+    refreshConnections();
+  } catch (error) {
+    connectionFeedback(error.message, true);
+  }
+});
+refreshConnections();
+
 function setFile(file) {
   if (!file) return;
   const transfer = new DataTransfer();

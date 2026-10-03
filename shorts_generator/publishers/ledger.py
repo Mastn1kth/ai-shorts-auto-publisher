@@ -6,6 +6,8 @@ import os
 import tempfile
 from typing import Dict, Optional
 
+from .credentials import get_secret
+
 
 def _account_marker(platform: str) -> str:
     if platform == "youtube":
@@ -14,13 +16,13 @@ def _account_marker(platform: str) -> str:
             return "account:" + account_id
         return "token-file:" + os.path.abspath(os.getenv("YOUTUBE_TOKEN_FILE", "youtube-token.json"))
     if platform == "vk":
-        group = os.getenv("VK_GROUP_ID", "").strip()
+        group = get_secret("VK_GROUP_ID")
         if group:
             return f"group:{group}"
-        token = os.getenv("VK_ACCESS_TOKEN", "").strip()
+        token = get_secret("VK_ACCESS_TOKEN")
         return "user-token:" + hashlib.sha256(token.encode("utf-8")).hexdigest()
     if platform == "telegram":
-        return "chat:" + os.getenv("TELEGRAM_CHAT_ID", "").strip().lower()
+        return "chat:" + get_secret("TELEGRAM_CHAT_ID").lower()
     raise ValueError(f"Unsupported platform: {platform}")
 
 

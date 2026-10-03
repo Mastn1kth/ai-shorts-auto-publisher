@@ -28,6 +28,16 @@
         </div>
       </section>
 
+      <details id="connections" class="connections">
+        <summary><span><span class="section-index">НАСТРОЙКИ / КАНАЛЫ</span><strong>Подключить площадки</strong></span><span class="summary-action">ОТКРЫТЬ НАСТРОЙКИ ↗</span></summary>
+        <div class="connections-grid">
+          <div class="connection-card"><div class="connection-top"><span class="connection-logo">YT</span><div><h3>YouTube</h3><p id="youtube-status">Проверяем подключение…</p></div></div><p>Для входа нужен OAuth JSON типа Desktop из Google Cloud с включённым YouTube Data API v3. Один раз добавь файл и войди через Google.</p><form id="youtube-client-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="file" name="client_file" accept=".json,application/json" required><button type="submit">СОХРАНИТЬ OAUTH JSON</button></form><form id="youtube-auth-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">АВТОРИЗОВАТЬСЯ ЧЕРЕЗ GOOGLE ↗</button></form></div>
+          <div class="connection-card"><div class="connection-top"><span class="connection-logo">VK</span><div><h3>VK Видео</h3><p id="vk-status">Проверяем подключение…</p></div></div><p>VK использует токен доступа с правами на загрузку видео. Если публикуешь в сообщество, укажи его ID.</p><form class="connection-token-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>ТОКЕН VK<input type="password" name="VK_ACCESS_TOKEN" placeholder="Вставь токен" autocomplete="off"></label><label>ID СООБЩЕСТВА <small>необязательно</small><input type="text" name="VK_GROUP_ID" placeholder="123456789" autocomplete="off"></label><button type="submit">СОХРАНИТЬ VK</button></form></div>
+          <div class="connection-card"><div class="connection-top"><span class="connection-logo">TG</span><div><h3>Telegram</h3><p id="telegram-status">Проверяем подключение…</p></div></div><p>Создай бота через <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">@BotFather</a>, добавь его администратором канала с правом публикации и впиши данные.</p><form class="connection-token-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>ТОКЕН БОТА<input type="password" name="TELEGRAM_BOT_TOKEN" placeholder="123456:..." autocomplete="off"></label><label>КАНАЛ<input type="text" name="TELEGRAM_CHAT_ID" placeholder="@mychannel" autocomplete="off"></label><button type="submit">СОХРАНИТЬ TELEGRAM</button></form></div>
+        </div>
+        <p id="connection-message" class="connection-message">Токены VK и Telegram хранятся в системном хранилище Windows. Сохранение токена не проверяет права канала; это покажет первая пробная загрузка.</p>
+      </details>
+
       <section class="workspace" aria-label="Создание клипов">
         <div class="workspace-head"><div><span class="section-index">01 / СОЗДАТЬ</span><h2>Новый проект</h2></div><span class="workspace-note">ОДНО ВИДЕО · ДО 10 КЛИПОВ</span></div>
         <form id="job-form" enctype="multipart/form-data" novalidate>

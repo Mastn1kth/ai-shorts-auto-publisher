@@ -1,6 +1,7 @@
 """Local web interface contract tests."""
 
 import io
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -111,6 +112,41 @@ class WebAppTests(unittest.TestCase):
                     web_app._publish_job(job_id)
                 self.assertEqual(web_app._jobs[job_id]["shorts"][0]["publishing"]["vk"]["status"], "uploaded")
                 self.assertEqual(web_app._jobs[job_id]["publish_state"], "finished")
+
+    def test_connection_status_does_not_return_tokens(self):
+        with patch.object(web_app, "get_secret", side_effect=lambda name: "private-key" if "TOKEN" in name else ""):
+            response = self.client.get("/api/connections")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("private-key", response.get_data(as_text=True))
+
+    def test_saving_platform_tokens_requires_csrf_and_uses_keyring(self):
+        denied = self.client.post("/api/connections/tokens", data={"VK_ACCESS_TOKEN": "secret"})
+        self.assertEqual(denied.status_code, 403)
+        with patch.object(web_app, "save_secret") as saved:
+            response = self.client.post("/api/connections/tokens", data={
+                "csrf_token": web_app.CSRF_TOKEN, "VK_ACCESS_TOKEN": "secret",
+            })
+        self.assertEqual(response.status_code, 200)
+        saved.assert_called_once_with("VK_ACCESS_TOKEN", "secret")
+
+    def test_youtube_oauth_client_file_is_validated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            with patch.object(web_app, "UI_CREDENTIALS_DIR", folder):
+                with patch.object(web_app, "YOUTUBE_CLIENT_FILE", folder / "client_secret.json"):
+                    with patch.object(web_app, "YOUTUBE_TOKEN_FILE", folder / "youtube-token.json"):
+                        with patch.dict(os.environ, {}, clear=False):
+                            invalid = self.client.post("/api/connections/youtube/client", data={
+                                "csrf_token": web_app.CSRF_TOKEN,
+                                "client_file": (io.BytesIO(b"{}"), "client.json"),
+                            })
+                            self.assertEqual(invalid.status_code, 400)
+                            valid = self.client.post("/api/connections/youtube/client", data={
+                                "csrf_token": web_app.CSRF_TOKEN,
+                                "client_file": (io.BytesIO(b'{"installed":{"client_id":"id","client_secret":"secret"}}'), "client.json"),
+                            })
+                            self.assertEqual(valid.status_code, 200)
+                            self.assertTrue((folder / "client_secret.json").is_file())
 
 
 if __name__ == "__main__":
