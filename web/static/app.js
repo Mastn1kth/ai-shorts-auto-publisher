@@ -251,7 +251,7 @@ async function pollJob(id) {
       startButton.disabled = false;
       return;
     }
-    showStatus('В РАБОТЕ', 'Обрабатываем видео. Это может занять несколько минут — страницу можно оставить открытой.');
+    showStatus('В РАБОТЕ', 'Обрабатываем видео. Это может занять несколько минут — окно программы можно оставить открытым.');
     setTimeout(() => pollJob(id), 2500);
   } catch (error) {
     localStorage.removeItem('shortform-active-job');
@@ -278,7 +278,16 @@ form.addEventListener('submit', async (event) => {
   }
 });
 
-const existingJob = localStorage.getItem('shortform-active-job');
-const lastJob = localStorage.getItem('shortform-last-job');
-if (existingJob) startButton.disabled = true;
-if (existingJob || lastJob) pollJob(existingJob || lastJob);
+async function restoreLatestJob() {
+  const existingJob = localStorage.getItem('shortform-active-job');
+  const lastJob = localStorage.getItem('shortform-last-job');
+  try {
+    const response = await fetch('/api/jobs/latest');
+    const latest = response.ok ? (await response.json()).id : null;
+    const id = latest || existingJob || lastJob;
+    if (id) pollJob(id);
+  } catch (error) {
+    if (existingJob || lastJob) pollJob(existingJob || lastJob);
+  }
+}
+restoreLatestJob();

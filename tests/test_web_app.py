@@ -129,6 +129,11 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("private-key", response.get_data(as_text=True))
 
+    def test_latest_job_is_available_after_queue_restore(self):
+        self.assertIsNone(self.client.get("/api/jobs/latest").get_json()["id"])
+        web_app._jobs["recent"] = {"id": "recent", "status": "completed"}
+        self.assertEqual(self.client.get("/api/jobs/latest").get_json()["id"], "recent")
+
     def test_saving_platform_tokens_requires_csrf_and_uses_keyring(self):
         denied = self.client.post("/api/connections/tokens", data={"VK_ACCESS_TOKEN": "secret"})
         self.assertEqual(denied.status_code, 403)

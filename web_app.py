@@ -424,6 +424,13 @@ def get_job(job_id):
     return jsonify({key: value for key, value in job.items() if key not in {"clip_paths", "raw_shorts", "source"}})
 
 
+@app.get("/api/jobs/latest")
+def get_latest_job():
+    if not _jobs:
+        return jsonify(id=None)
+    return jsonify(id=next(reversed(_jobs)))
+
+
 @app.get("/api/jobs/<job_id>/clips/<int:index>")
 def get_clip(job_id, index):
     job = _jobs.get(job_id)
