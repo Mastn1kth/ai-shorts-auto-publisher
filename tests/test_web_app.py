@@ -53,6 +53,18 @@ class WebAppTests(unittest.TestCase):
         response = self._post(provider="custom", base_url="http://example.com/v1")
         self.assertEqual(response.status_code, 400)
 
+    def test_accepts_youtube_url_without_upload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(web_app, "JOBS_DIR", Path(directory)):
+                with patch.object(web_app, "Thread"):
+                    response = self._post(video=None, source_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(web_app._jobs[response.get_json()["id"]]["source"], "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+
+    def test_rejects_non_youtube_url(self):
+        response = self._post(video=None, source_url="https://evil.example/video")
+        self.assertEqual(response.status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()

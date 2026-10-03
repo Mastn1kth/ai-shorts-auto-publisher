@@ -1,6 +1,7 @@
 """Local-only web interface for MP4-to-shorts jobs."""
 
 import os
+import re
 import secrets
 from pathlib import Path
 from threading import Lock, Thread
@@ -11,6 +12,7 @@ from flask import Flask, abort, jsonify, render_template, request, send_file
 
 from shorts_generator import generate_shorts
 from shorts_generator.local.llm import make_llm
+from shorts_generator.local.downloader import _extract_youtube_video_id
 from shorts_generator.publishers.service import validate_publish_request
 
 
@@ -77,6 +79,18 @@ def _settings(form):
     }
 
 
+def _youtube_url(value: str) -> str:
+    parsed = urlparse(value)
+    if parsed.scheme != "https" or parsed.hostname not in {
+        "youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be"
+    }:
+        raise ValueError("Нужна HTTPS-ссылка на видео YouTube")
+    video_id = _extract_youtube_video_id(value)
+    if not video_id or not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+        raise ValueError("Не удалось распознать ID видео YouTube")
+    return value
+
+
 def _run_job(job_id: str, settings: dict) -> None:
     global _active_job
     job = _jobs[job_id]
@@ -84,7 +98,7 @@ def _run_job(job_id: str, settings: dict) -> None:
     try:
         llm = make_llm(settings["provider"], settings["model"], settings["api_key"], settings["base_url"])
         result = generate_shorts(
-            str(JOBS_DIR / job_id / "source.mp4"),
+            job["source"],
             mode="local",
             num_clips=settings["num_clips"],
             llm_fn=llm,
@@ -126,12 +140,22 @@ def create_job():
     if request.form.get("csrf_token") != CSRF_TOKEN:
         return jsonify(error="Недействительный запрос. Обновите страницу."), 403
     upload = request.files.get("video")
-    if not upload or not upload.filename or not upload.filename.lower().endswith(".mp4"):
-        return jsonify(error="Нужен файл MP4"), 400
-    header = upload.stream.read(12)
-    upload.stream.seek(0)
-    if len(header) < 12 or header[4:8] != b"ftyp":
-        return jsonify(error="Файл не похож на MP4"), 400
+    has_upload = bool(upload and upload.filename)
+    raw_url = request.form.get("source_url", "").strip()
+    if has_upload == bool(raw_url):
+        return jsonify(error="Выберите MP4 или вставьте ссылку YouTube — что-то одно"), 400
+    if has_upload:
+        if not upload.filename.lower().endswith(".mp4"):
+            return jsonify(error="Нужен файл MP4"), 400
+        header = upload.stream.read(12)
+        upload.stream.seek(0)
+        if len(header) < 12 or header[4:8] != b"ftyp":
+            return jsonify(error="Файл не похож на MP4"), 400
+    else:
+        try:
+            raw_url = _youtube_url(raw_url)
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
     try:
         settings = _settings(request.form)
     except ValueError as exc:
@@ -145,7 +169,11 @@ def create_job():
     folder = JOBS_DIR / job_id
     try:
         folder.mkdir(parents=True, exist_ok=False)
-        upload.save(folder / "source.mp4")
+        if has_upload:
+            upload.save(folder / "source.mp4")
+            _jobs[job_id]["source"] = str(folder / "source.mp4")
+        else:
+            _jobs[job_id]["source"] = raw_url
     except Exception:
         with _lock:
             _active_job = None

@@ -2,6 +2,7 @@ const form = document.querySelector('#job-form');
 const fileInput = document.querySelector('#video-input');
 const dropZone = document.querySelector('#drop-zone');
 const selectedFile = document.querySelector('#selected-file');
+const sourceUrl = document.querySelector('#source-url');
 const provider = document.querySelector('#provider');
 const model = document.querySelector('#model');
 const baseUrlField = document.querySelector('#base-url-field');
@@ -27,6 +28,7 @@ function setFile(file) {
   fileInput.files = transfer.files;
   selectedFile.textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)} МБ`;
   dropZone.classList.add('has-file');
+  sourceUrl.value = '';
 }
 
 dropZone.addEventListener('click', (event) => {
@@ -39,6 +41,13 @@ dropZone.addEventListener('keydown', (event) => {
   }
 });
 fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
+sourceUrl.addEventListener('input', () => {
+  if (sourceUrl.value.trim()) {
+    fileInput.value = '';
+    dropZone.classList.remove('has-file');
+    selectedFile.textContent = 'MP4 · до 4 ГБ · обрабатывается локально';
+  }
+});
 ['dragenter', 'dragover'].forEach((name) => dropZone.addEventListener(name, (event) => {
   event.preventDefault();
   dropZone.classList.add('drag-over');
@@ -151,7 +160,7 @@ async function pollJob(id) {
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (!fileInput.files[0]) return showStatus('НУЖЕН MP4', 'Сначала выбери видеофайл.');
+  if (!fileInput.files[0] && !sourceUrl.value.trim()) return showStatus('НУЖЕН ИСТОЧНИК', 'Выбери MP4 или вставь ссылку YouTube.');
   startButton.disabled = true;
   clips.replaceChildren();
   showStatus('ЗАГРУЗКА', 'Сохраняем видео локально для обработки…');

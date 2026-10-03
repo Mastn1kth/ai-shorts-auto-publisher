@@ -35,13 +35,15 @@
           <div class="editor-grid">
             <div class="editor-main">
               <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="Выбрать видео MP4">
-                <input id="video-input" type="file" name="video" accept=".mp4,video/mp4" required>
+                <input id="video-input" type="file" name="video" accept=".mp4,video/mp4">
                 <div class="drop-icon" aria-hidden="true"><span>↥</span></div>
                 <div class="drop-title">Перетащи видео сюда</div>
                 <div class="drop-subtitle">или <span>выбери MP4 на компьютере</span></div>
                 <div id="selected-file" class="selected-file">MP4 · до 4 ГБ · обрабатывается локально</div>
                 <div class="drop-corner corner-tl"></div><div class="drop-corner corner-tr"></div><div class="drop-corner corner-bl"></div><div class="drop-corner corner-br"></div>
               </div>
+              <div class="source-divider"><span>ИЛИ</span></div>
+              <label class="field source-url-field"><span class="field-label">ССЫЛКА НА YOUTUBE</span><input id="source-url" name="source_url" type="url" placeholder="https://www.youtube.com/watch?v=..." spellcheck="false"></label>
               <div class="input-row">
                 <label class="field"><span class="field-label">КОЛИЧЕСТВО КЛИПОВ</span><select name="num_clips" id="num-clips"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></label>
                 <div class="field field-info"><span class="field-label">ФОРМАТ</span><div class="field-static">9:16 <span>вертикальное видео</span></div></div>
