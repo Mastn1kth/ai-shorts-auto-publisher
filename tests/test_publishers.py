@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 
 from shorts_generator.publishers.base import PublisherError
 from shorts_generator.publishers.instagram import InstagramPublisher
+from shorts_generator.publishers.ledger import PublishingLedger
 from shorts_generator.publishers.service import publish_shorts, validate_publish_request
 from shorts_generator.publishers.storage import public_video_url
 from shorts_generator.publishers.vk import VKPublisher
@@ -103,6 +104,89 @@ class VKTests(unittest.TestCase):
                 VKPublisher(access_token="test-token").publish(path, {"title": "Test"})
             self.assertEqual(post.call_args_list[0].kwargs["data"]["access_token"], "test-token")
             self.assertNotIn("test-token", str(post.call_args_list[0].args))
+
+
+class LedgerTests(unittest.TestCase):
+    def _clip(self, directory):
+        path = os.path.join(directory, "clip.mp4")
+        with open(path, "wb") as video:
+            video.write(b"same video bytes")
+        return {"clip_url": path, "title": "Test", "start_time": 1.0, "end_time": 5.0}
+
+    def test_success_is_skipped_on_second_run_and_force_republishes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger_path = os.path.join(directory, "ledger.json")
+            clip = self._clip(directory)
+            publisher = Mock()
+            publisher.publish.return_value = {"platform": "vk", "status": "uploaded", "external_id": "123"}
+            with patch.dict(os.environ, {"PUBLISH_LEDGER_FILE": ledger_path, "VK_ACCESS_TOKEN": "secret"}):
+                with patch("shorts_generator.publishers.service._publisher", return_value=publisher):
+                    first = publish_shorts([clip], ["vk"])
+                    second = publish_shorts([clip], ["vk"])
+                    forced = publish_shorts([clip], ["vk"], force_republish=True)
+            self.assertEqual(first[0]["publishing"]["vk"]["status"], "uploaded")
+            self.assertEqual(second[0]["publishing"]["vk"]["status"], "already_uploaded")
+            self.assertEqual(publisher.publish.call_count, 2)
+            self.assertEqual(forced[0]["publishing"]["vk"]["status"], "uploaded")
+            with open(ledger_path, encoding="utf-8") as ledger:
+                self.assertNotIn("secret", ledger.read())
+
+    def test_partial_failure_retries_only_failed_platform(self):
+        with tempfile.TemporaryDirectory() as directory:
+            clip = self._clip(directory)
+            youtube = Mock()
+            youtube.publish.return_value = {"platform": "youtube", "status": "uploaded", "external_id": "yt-1"}
+            vk = Mock()
+            vk.publish.side_effect = [RuntimeError("network error"), {"platform": "vk", "status": "uploaded"}]
+            publishers = {"youtube": youtube, "vk": vk}
+            with patch.dict(os.environ, {"PUBLISH_LEDGER_FILE": os.path.join(directory, "ledger.json")}):
+                with patch("shorts_generator.publishers.service._publisher", side_effect=publishers.get):
+                    first = publish_shorts([clip], ["youtube", "vk"])
+                    second = publish_shorts([clip], ["youtube", "vk"])
+            self.assertEqual(first[0]["publishing"]["vk"]["status"], "failed")
+            self.assertEqual(second[0]["publishing"]["youtube"]["status"], "already_uploaded")
+            self.assertEqual(second[0]["publishing"]["vk"]["status"], "uploaded")
+            youtube.publish.assert_called_once()
+            self.assertEqual(vk.publish.call_count, 2)
+
+    def test_tracking_failure_preserves_successful_upload_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            clip = self._clip(directory)
+            publisher = Mock()
+            publisher.publish.return_value = {"platform": "vk", "status": "uploaded", "external_id": "123"}
+            with patch.dict(os.environ, {"PUBLISH_LEDGER_FILE": os.path.join(directory, "ledger.json")}):
+                with patch("shorts_generator.publishers.service._publisher", return_value=publisher):
+                    with patch("shorts_generator.publishers.service.PublishingLedger.record", side_effect=OSError("disk full")):
+                        result = publish_shorts([clip], ["vk"])
+            status = result[0]["publishing"]["vk"]
+            self.assertEqual(status["status"], "uploaded")
+            self.assertIn("disk full", status["tracking_error"])
+
+    def test_new_hosted_url_for_same_source_and_segment_is_skipped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            publisher = Mock()
+            publisher.publish.return_value = {"platform": "instagram", "status": "published", "external_id": "ig-1"}
+            first_clip = {"clip_url": "https://cdn.example.com/first.mp4", "start_time": 10.0, "end_time": 30.0}
+            second_clip = {**first_clip, "clip_url": "https://cdn.example.com/second.mp4"}
+            with patch.dict(os.environ, {"PUBLISH_LEDGER_FILE": os.path.join(directory, "ledger.json"), "INSTAGRAM_USER_ID": "42"}):
+                with patch("shorts_generator.publishers.service._publisher", return_value=publisher):
+                    first = publish_shorts([first_clip], ["instagram"], privacy_status="public", source_id="https://youtube.com/watch?v=1")
+                    second = publish_shorts([second_clip], ["instagram"], privacy_status="public", source_id="https://youtube.com/watch?v=1")
+            self.assertEqual(first[0]["publishing"]["instagram"]["status"], "published")
+            self.assertEqual(second[0]["publishing"]["instagram"]["status"], "already_published")
+            publisher.publish.assert_called_once()
+
+    def test_youtube_key_is_stable_when_oauth_file_appears(self):
+        with tempfile.TemporaryDirectory() as directory:
+            token_file = os.path.join(directory, "youtube-token.json")
+            clip = self._clip(directory)
+            ledger = PublishingLedger(path=os.path.join(directory, "ledger.json"))
+            with patch.dict(os.environ, {"YOUTUBE_TOKEN_FILE": token_file, "YOUTUBE_ACCOUNT_ID": ""}):
+                before = ledger.key("youtube", clip["clip_url"], clip, None)
+                with open(token_file, "w", encoding="utf-8") as token:
+                    token.write('{"refresh_token":"new-token"}')
+                after = ledger.key("youtube", clip["clip_url"], clip, None)
+            self.assertEqual(before, after)
 
 
 class CLITests(unittest.TestCase):
