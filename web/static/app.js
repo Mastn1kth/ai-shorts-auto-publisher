@@ -3,25 +3,18 @@ const fileInput = document.querySelector('#video-input');
 const dropZone = document.querySelector('#drop-zone');
 const selectedFile = document.querySelector('#selected-file');
 const sourceUrl = document.querySelector('#source-url');
-const provider = document.querySelector('#provider');
-const model = document.querySelector('#model');
-const baseUrlField = document.querySelector('#base-url-field');
-const keyInput = document.querySelector('#api-key');
 const privacy = document.querySelector('#privacy');
 const results = document.querySelector('#results');
 const jobState = document.querySelector('#job-state');
 const statusMessage = document.querySelector('#status-message');
 const clips = document.querySelector('#clips');
 const startButton = document.querySelector('#start-button');
+const connectionsPanel = document.querySelector('#connections');
 let lastState = '';
 let lastClipsSignature = '';
-const modelExamples = {
-  openai: 'gpt-4o-mini',
-  gemini: 'gemini-2.5-flash',
-  openrouter: 'openai/gpt-4o-mini',
-  groq: 'openai/gpt-oss-20b',
-  custom: 'model-name'
-};
+connectionsPanel.addEventListener('toggle', () => {
+  connectionsPanel.querySelector('.summary-action').textContent = connectionsPanel.open ? 'ЗАКРЫТЬ ↑' : 'ОТКРЫТЬ ↗';
+});
 
 function connectionFeedback(message, isError = false) {
   const target = document.querySelector('#connection-message');
@@ -37,6 +30,8 @@ async function connectionRequest(url, data) {
 }
 
 function updateConnections(status) {
+  const savedAI = Object.entries(status.ai_saved || {}).filter(([, saved]) => saved).map(([name]) => name);
+  document.querySelector('#ai-status').textContent = savedAI.length ? `Сохранено: ${savedAI.join(', ')}` : 'Добавь хотя бы один ключ';
   document.querySelector('#youtube-status').textContent = status.youtube_auth.status === 'connected'
     ? 'Google подключён'
     : status.youtube_auth.status === 'pending' ? 'Ожидаем вход через Google…'
@@ -65,7 +60,7 @@ document.querySelectorAll('.connection-token-form').forEach((settingsForm) => se
     const status = await connectionRequest('/api/connections/tokens', new FormData(settingsForm));
     settingsForm.querySelectorAll('input[type="password"]').forEach((input) => { input.value = ''; });
     updateConnections(status);
-    connectionFeedback('Данные сохранены в системном хранилище. Проверь публикацию пробным роликом.');
+    connectionFeedback('Сохранено в хранилище Windows.');
   } catch (error) {
     connectionFeedback(error.message, true);
   }
@@ -116,7 +111,7 @@ sourceUrl.addEventListener('input', () => {
   if (sourceUrl.value.trim()) {
     fileInput.value = '';
     dropZone.classList.remove('has-file');
-    selectedFile.textContent = 'MP4 · до 4 ГБ · обрабатывается локально';
+    selectedFile.textContent = 'MP4 · до 4 ГБ';
   }
 });
 ['dragenter', 'dragover'].forEach((name) => dropZone.addEventListener(name, (event) => {
@@ -129,16 +124,6 @@ sourceUrl.addEventListener('input', () => {
 }));
 dropZone.addEventListener('drop', (event) => setFile(event.dataTransfer.files[0]));
 
-provider.addEventListener('change', () => {
-  model.value = modelExamples[provider.value] || '';
-  baseUrlField.classList.toggle('hidden', provider.value !== 'custom');
-});
-document.querySelector('#toggle-key').addEventListener('click', (event) => {
-  const visible = keyInput.type === 'text';
-  keyInput.type = visible ? 'password' : 'text';
-  event.currentTarget.textContent = visible ? 'ПОКАЗАТЬ' : 'СКРЫТЬ';
-  event.currentTarget.setAttribute('aria-label', visible ? 'Показать API-ключ' : 'Скрыть API-ключ');
-});
 document.querySelectorAll('input[name="platforms"]').forEach((box) => box.addEventListener('change', () => {
   if (box.value === 'telegram' && box.checked) privacy.value = 'public';
 }));

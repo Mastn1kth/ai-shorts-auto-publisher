@@ -369,6 +369,11 @@ def index():
     return render_template("index.html", csrf_token=CSRF_TOKEN)
 
 
+@app.get("/favicon.ico")
+def favicon():
+    return send_file(ROOT / "web" / "static" / "favicon.svg", mimetype="image/svg+xml")
+
+
 @app.post("/api/jobs")
 def create_job():
     global _active_job

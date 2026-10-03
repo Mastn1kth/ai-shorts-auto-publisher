@@ -14,3 +14,32 @@
 .connections{border:1px solid var(--line);background:#121713;margin-bottom:26px}.connections summary{display:flex;justify-content:space-between;align-items:center;gap:20px;cursor:pointer;padding:19px 27px;list-style:none}.connections summary::-webkit-details-marker{display:none}.connections summary>span:first-child{display:flex;align-items:center;gap:19px}.connections summary strong{font:800 19px Bahnschrift,sans-serif}.summary-action{font:700 10px Bahnschrift,sans-serif;letter-spacing:1px;color:var(--acid)}.connections[open] summary{border-bottom:1px solid var(--line)}.connections-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line)}.connection-card{background:#151c17;padding:27px;min-width:0}.connection-top{display:flex;gap:11px;align-items:center}.connection-logo{width:38px;height:38px;background:#2b3a2c;color:var(--acid);display:grid;place-items:center;font:800 12px Bahnschrift,sans-serif}.connection-card h3{font:800 20px Bahnschrift,sans-serif;margin:0 0 2px}.connection-card p{font-size:12px;color:#9dac9d;line-height:1.5;margin:14px 0}.connection-top p{margin:0;color:var(--acid);font-size:10px}.connection-card a{color:var(--acid)}.connection-card form{display:flex;flex-direction:column;gap:11px;margin-top:17px}.connection-card input[type=file]{color:var(--muted);font-size:11px;max-width:100%}.connection-card label{display:flex;flex-direction:column;gap:5px;color:var(--muted);font:700 10px Bahnschrift,sans-serif;letter-spacing:1px}.connection-card label small{font-size:9px;letter-spacing:0}.connection-card input[type=text],.connection-card input[type=password]{width:100%;height:39px;border:1px solid #3a463d;background:#101511;color:var(--text);padding:0 10px}.connection-card button{border:1px solid #728b58;background:transparent;color:var(--acid);min-height:39px;padding:8px 12px;font:700 10px Bahnschrift,sans-serif;letter-spacing:1px;text-align:left}.connection-card button:hover{background:rgba(215,255,68,.1)}.connection-message{margin:0;padding:16px 27px;color:var(--muted);font-size:11px;line-height:1.5}.connection-message.error{color:var(--danger)}
 @media(max-width:900px){.connections-grid{grid-template-columns:1fr}.connection-card{border-bottom:1px solid var(--line)}}
 @media(max-width:540px){.connections summary{padding:18px}.connections summary>span:first-child{flex-direction:column;align-items:flex-start;gap:7px}.summary-action{font-size:9px}.connection-card{padding:20px}}
+
+/* Compact desktop workflow: source, destination, run. Credentials stay in settings. */
+.intro{display:block;min-height:0;padding:38px 0 26px}
+.intro h1{font-size:clamp(42px,5vw,66px);letter-spacing:-2px;margin-bottom:12px}
+.intro-text{max-width:none;font-size:14px;line-height:1.45}
+.workspace-head{padding:24px 32px 20px}
+.workspace-head h2{font-size:29px;margin:0}
+.editor-grid{display:block}
+.editor-main{padding:28px 32px;border-right:0}
+.drop-zone{height:190px}
+.drop-icon{height:46px;width:46px;font-size:26px;margin-bottom:11px}
+.drop-title{font-size:22px}
+.selected-file{margin-top:14px}
+.clip-count{max-width:210px;margin-top:19px}
+.publish-bar{grid-template-columns:170px minmax(0,1fr) 145px 125px;padding:22px 32px}
+.publish-title h3{margin:0}
+.schedule-settings{border-bottom:1px solid var(--line);background:#171e19}
+.schedule-settings summary{display:flex;justify-content:space-between;gap:15px;padding:18px 32px;cursor:pointer;list-style:none;color:#d7e2d1;font-size:13px}
+.schedule-settings summary::-webkit-details-marker{display:none}
+.schedule-settings summary span{color:var(--acid);font:700 10px Bahnschrift,sans-serif;letter-spacing:1px}
+.schedule-bar{grid-template-columns:220px minmax(220px,1fr);max-width:690px;padding:0 32px 24px;border:0}
+.action-row{justify-content:flex-end;padding:22px 32px}
+.ai-card{grid-column:1/-1}
+.ai-key-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.ai-card form{margin-top:18px}
+.ai-card button{max-width:190px}
+.ai-note{margin-bottom:0!important}
+@media(max-width:900px){.ai-key-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.publish-bar{grid-template-columns:1fr 1fr}.publish-title,.publish-options{grid-column:1/-1}}
+@media(max-width:540px){.site-shell{padding:0 16px}.intro{padding:30px 0 22px}.intro h1{font-size:43px}.editor-main{padding:20px}.workspace-head{padding:20px}.drop-zone{height:190px}.publish-bar{padding:20px}.schedule-settings summary{padding:18px 20px}.schedule-bar{grid-template-columns:1fr;padding:0 20px 22px}.ai-key-grid{grid-template-columns:1fr}.action-row{padding:20px}}

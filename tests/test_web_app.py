@@ -36,6 +36,16 @@ class WebAppTests(unittest.TestCase):
         csrf = self._post(csrf_token="wrong")
         self.assertEqual(csrf.status_code, 403)
 
+    def test_simple_desktop_page_has_key_settings_but_no_ai_picker(self):
+        html = self.client.get("/").get_data(as_text=True)
+        self.assertIn('name="OPENAI_API_KEY"', html)
+        self.assertIn('name="GEMINI_API_KEY"', html)
+        self.assertNotIn('name="provider"', html)
+        self.assertNotIn('name="model"', html)
+        icon = self.client.get("/favicon.ico")
+        self.assertEqual(icon.status_code, 200)
+        icon.close()
+
     def test_starts_local_job_without_exposing_api_key(self):
         with tempfile.TemporaryDirectory() as directory:
             with patch.object(web_app, "JOBS_DIR", Path(directory)):

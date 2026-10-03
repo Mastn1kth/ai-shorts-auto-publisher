@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SHORTFORM / монтажная станция</title>
+  <title>Shortform Studio</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/app.js" defer></script>
 </head>
@@ -11,35 +12,30 @@
   <div class="site-shell">
     <header class="topbar">
       <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>SHORTFORM<span class="brand-dot">.</span></span></div>
-      <div class="topbar-right"><span class="online-dot"></span> ЛОКАЛЬНАЯ СТУДИЯ <span class="topbar-divider"></span> V1.0</div>
+      <div class="topbar-right"><span class="online-dot"></span> ПРИЛОЖЕНИЕ WINDOWS</div>
     </header>
 
     <main>
       <section class="intro" aria-labelledby="hero-title">
         <div class="intro-copy">
-          <p class="eyebrow"><span class="eyebrow-line"></span> ВИДЕО → СМЫСЛ → КЛИПЫ</p>
-          <h1 id="hero-title">Длинное видео.<br><em>Короткий момент.</em></h1>
-          <p class="intro-text">Загрузи MP4, выбери ИИ для поиска сильных фрагментов и получи готовые вертикальные ролики. Всё начинается здесь — на твоём компьютере.</p>
-        </div>
-        <div class="intro-art" aria-hidden="true">
-          <div class="art-crosshair art-crosshair-a">+</div><div class="art-crosshair art-crosshair-b">+</div>
-          <div class="art-frame"><div class="art-video"><div class="art-play"></div><div class="art-caption">01 / THE MOMENT</div></div></div>
-          <div class="art-orbit">9:16 <span>●</span> READY TO CUT</div>
+          <h1 id="hero-title">Видео → <em>клипы</em></h1>
+          <p class="intro-text">Добавь MP4 или ссылку YouTube. Готовые ролики появятся здесь.</p>
         </div>
       </section>
 
       <details id="connections" class="connections">
-        <summary><span><span class="section-index">НАСТРОЙКИ / КАНАЛЫ</span><strong>Подключить площадки</strong></span><span class="summary-action">ОТКРЫТЬ НАСТРОЙКИ ↗</span></summary>
+        <summary><span><strong>Настройки: ключи и каналы</strong></span><span class="summary-action">ОТКРЫТЬ ↗</span></summary>
         <div class="connections-grid">
-          <div class="connection-card"><div class="connection-top"><span class="connection-logo">YT</span><div><h3>YouTube</h3><p id="youtube-status">Проверяем подключение…</p></div></div><p>Для входа нужен OAuth JSON типа Desktop из Google Cloud с включённым YouTube Data API v3. Один раз добавь файл и войди через Google.</p><form id="youtube-client-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="file" name="client_file" accept=".json,application/json" required><button type="submit">СОХРАНИТЬ OAUTH JSON</button></form><form id="youtube-auth-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">АВТОРИЗОВАТЬСЯ ЧЕРЕЗ GOOGLE ↗</button></form></div>
-          <div class="connection-card"><div class="connection-top"><span class="connection-logo">VK</span><div><h3>VK Видео</h3><p id="vk-status">Проверяем подключение…</p></div></div><p>VK использует токен доступа с правами на загрузку видео. Если публикуешь в сообщество, укажи его ID.</p><form class="connection-token-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>ТОКЕН VK<input type="password" name="VK_ACCESS_TOKEN" placeholder="Вставь токен" autocomplete="off"></label><label>ID СООБЩЕСТВА <small>необязательно</small><input type="text" name="VK_GROUP_ID" placeholder="123456789" autocomplete="off"></label><button type="submit">СОХРАНИТЬ VK</button></form></div>
-          <div class="connection-card"><div class="connection-top"><span class="connection-logo">TG</span><div><h3>Telegram</h3><p id="telegram-status">Проверяем подключение…</p></div></div><p>Создай бота через <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">@BotFather</a>, добавь его администратором канала с правом публикации и впиши данные.</p><form class="connection-token-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>ТОКЕН БОТА<input type="password" name="TELEGRAM_BOT_TOKEN" placeholder="123456:..." autocomplete="off"></label><label>КАНАЛ<input type="text" name="TELEGRAM_CHAT_ID" placeholder="@mychannel" autocomplete="off"></label><button type="submit">СОХРАНИТЬ TELEGRAM</button></form></div>
+          <div class="connection-card ai-card"><div class="connection-top"><span class="connection-logo">AI</span><div><h3>Ключи ИИ</h3><p id="ai-status">Проверяем ключи…</p></div></div><form class="connection-token-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><div class="ai-key-grid"><label>OPENAI<input type="password" name="OPENAI_API_KEY" placeholder="Вставь API-ключ" autocomplete="off"></label><label>GEMINI<input type="password" name="GEMINI_API_KEY" placeholder="Вставь API-ключ" autocomplete="off"></label><label>OPENROUTER<input type="password" name="OPENROUTER_API_KEY" placeholder="Вставь API-ключ" autocomplete="off"></label><label>GROQ<input type="password" name="GROQ_API_KEY" placeholder="Вставь API-ключ" autocomplete="off"></label></div><button type="submit">СОХРАНИТЬ КЛЮЧИ</button></form><p class="ai-note">Достаточно одного ключа. Если добавлено несколько, используется первый: OpenAI → Gemini → OpenRouter → Groq.</p></div>
+          <div class="connection-card"><div class="connection-top"><span class="connection-logo">YT</span><div><h3>YouTube</h3><p id="youtube-status">Проверяем…</p></div></div><p>Для входа нужен OAuth JSON типа Desktop из Google Cloud.</p><form id="youtube-client-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="file" name="client_file" accept=".json,application/json" required><button type="submit">ДОБАВИТЬ OAUTH JSON</button></form><form id="youtube-auth-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">ВОЙТИ ЧЕРЕЗ GOOGLE ↗</button></form></div>
+          <div class="connection-card"><div class="connection-top"><span class="connection-logo">VK</span><div><h3>VK Видео</h3><p id="vk-status">Проверяем…</p></div></div><form class="connection-token-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>ТОКЕН VK<input type="password" name="VK_ACCESS_TOKEN" placeholder="Вставь токен" autocomplete="off"></label><label>ID СООБЩЕСТВА <small>необязательно</small><input type="text" name="VK_GROUP_ID" placeholder="123456789" autocomplete="off"></label><button type="submit">СОХРАНИТЬ VK</button></form></div>
+          <div class="connection-card"><div class="connection-top"><span class="connection-logo">TG</span><div><h3>Telegram</h3><p id="telegram-status">Проверяем…</p></div></div><form class="connection-token-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>ТОКЕН БОТА<input type="password" name="TELEGRAM_BOT_TOKEN" placeholder="123456:..." autocomplete="off"></label><label>КАНАЛ<input type="text" name="TELEGRAM_CHAT_ID" placeholder="@mychannel" autocomplete="off"></label><button type="submit">СОХРАНИТЬ TELEGRAM</button></form></div>
         </div>
-        <p id="connection-message" class="connection-message">Токены VK и Telegram хранятся в системном хранилище Windows. Сохранение токена не проверяет права канала; это покажет первая пробная загрузка.</p>
+        <p id="connection-message" class="connection-message">Ключи сохраняются в защищённом хранилище Windows. Доступ к каналам подтвердится после пробной публикации.</p>
       </details>
 
       <section class="workspace" aria-label="Создание клипов">
-        <div class="workspace-head"><div><span class="section-index">01 / СОЗДАТЬ</span><h2>Новый проект</h2></div><span class="workspace-note">ОДНО ВИДЕО · ДО 10 КЛИПОВ</span></div>
+        <div class="workspace-head"><div><h2>Создать клипы</h2></div></div>
         <form id="job-form" enctype="multipart/form-data" novalidate>
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <div class="editor-grid">
@@ -49,46 +45,32 @@
                 <div class="drop-icon" aria-hidden="true"><span>↥</span></div>
                 <div class="drop-title">Перетащи видео сюда</div>
                 <div class="drop-subtitle">или <span>выбери MP4 на компьютере</span></div>
-                <div id="selected-file" class="selected-file">MP4 · до 4 ГБ · обрабатывается локально</div>
+                <div id="selected-file" class="selected-file">MP4 · до 4 ГБ</div>
                 <div class="drop-corner corner-tl"></div><div class="drop-corner corner-tr"></div><div class="drop-corner corner-bl"></div><div class="drop-corner corner-br"></div>
               </div>
               <div class="source-divider"><span>ИЛИ</span></div>
               <label class="field source-url-field"><span class="field-label">ССЫЛКА НА YOUTUBE</span><input id="source-url" name="source_url" type="url" placeholder="https://www.youtube.com/watch?v=..." spellcheck="false"></label>
-              <div class="input-row">
-                <label class="field"><span class="field-label">КОЛИЧЕСТВО КЛИПОВ</span><select name="num_clips" id="num-clips"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></label>
-                <div class="field field-info"><span class="field-label">ФОРМАТ</span><div class="field-static">9:16 <span>вертикальное видео</span></div></div>
-              </div>
+              <label class="field clip-count"><span class="field-label">СКОЛЬКО КЛИПОВ</span><select name="num_clips" id="num-clips"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></label>
             </div>
-
-            <aside class="editor-side">
-              <div class="panel-header"><span class="panel-icon">✳</span><div><div class="panel-kicker">МОЗГ ПРОЕКТА</div><h3>Выбери ИИ</h3></div></div>
-              <p class="panel-copy">ИИ анализирует расшифровку и решает, какие моменты стоит вырезать. Ключ нужен только на время запуска.</p>
-              <label class="field"><span class="field-label">СЕРВИС</span><select id="provider" name="provider"><option value="openai">OpenAI</option><option value="gemini">Google Gemini</option><option value="openrouter">OpenRouter</option><option value="groq">Groq</option><option value="custom">Свой совместимый API</option></select></label>
-              <label class="field"><span class="field-label">МОДЕЛЬ</span><input id="model" name="model" value="gpt-4o-mini" required maxlength="120" autocomplete="off" spellcheck="false"></label>
-              <label class="field"><span class="field-label">API-КЛЮЧ <small>или из .env</small></span><span class="password-wrap"><input id="api-key" name="api_key" type="password" placeholder="Вставь ключ сюда" autocomplete="off" spellcheck="false"><button id="toggle-key" class="key-toggle" type="button" aria-label="Показать API-ключ">ПОКАЗАТЬ</button></span></label>
-              <label id="base-url-field" class="field hidden"><span class="field-label">BASE URL</span><input id="base-url" name="base_url" type="url" placeholder="https://api.example.com/v1" autocomplete="off" spellcheck="false"></label>
-              <p class="key-note"><span>↗</span> Ключ не сохраняется в программе или проекте. Для следующего задания его нужно ввести снова.</p>
-            </aside>
           </div>
 
           <div class="publish-bar">
-            <div class="publish-title"><span class="section-index">02 / ОТПРАВИТЬ</span><h3>Публикация <span>необязательно</span></h3></div>
+            <div class="publish-title"><h3>Опубликовать</h3></div>
             <div class="publish-options"><label><input type="checkbox" name="platforms" value="youtube"><span>YouTube Shorts</span></label><label><input type="checkbox" name="platforms" value="vk"><span>VK Видео</span></label><label><input type="checkbox" name="platforms" value="telegram"><span>Telegram</span></label></div>
             <label class="privacy-select"><span>ВИДИМОСТЬ</span><select id="privacy" name="privacy"><option value="private">Приватно</option><option value="unlisted">По ссылке</option><option value="public">Публично</option></select></label>
             <label class="dry-run"><input type="checkbox" name="dry_run"><span>Тест без загрузки</span></label>
           </div>
-          <div class="schedule-bar"><div><span class="field-label">РАСПИСАНИЕ ПУБЛИКАЦИЙ</span><p>Первый ролик — сразу после готовности, следующие — с заданным интервалом.</p></div><label class="field"><span class="field-label">ИНТЕРВАЛ, МИНУТЫ</span><input name="interval_minutes" type="number" min="1" max="10080" value="60"></label><label class="field"><span class="field-label">ПЕРВЫЙ ВЫХОД <small>необязательно, время компьютера</small></span><input name="start_at" type="datetime-local"></label></div>
-          <div class="action-row"><p>Создание клипов может занять несколько минут. Публикация начнётся только на отмеченных площадках.</p><button id="start-button" class="start-button" type="submit"><span>СОЗДАТЬ КЛИПЫ</span><span class="button-arrow">↗</span></button></div>
+          <details class="schedule-settings"><summary>Расписание: 1 ролик в час <span>ИЗМЕНИТЬ ↗</span></summary><div class="schedule-bar"><label class="field"><span class="field-label">ИНТЕРВАЛ, МИНУТЫ</span><input name="interval_minutes" type="number" min="1" max="10080" value="60"></label><label class="field"><span class="field-label">ПЕРВЫЙ ВЫХОД <small>необязательно</small></span><input name="start_at" type="datetime-local"></label></div></details>
+          <div class="action-row"><button id="start-button" class="start-button" type="submit"><span>СОЗДАТЬ КЛИПЫ</span><span class="button-arrow">↗</span></button></div>
         </form>
       </section>
 
       <section id="results" class="results" aria-live="polite" hidden>
-        <div class="workspace-head"><div><span class="section-index">03 / РЕЗУЛЬТАТ</span><h2>Твои клипы</h2></div><span id="job-state" class="result-state">ОЖИДАНИЕ</span></div>
+        <div class="workspace-head"><div><h2>Готовые клипы</h2></div><span id="job-state" class="result-state">ОЖИДАНИЕ</span></div>
         <div id="status-message" class="status-message"></div>
         <div id="clips" class="clips"></div>
       </section>
     </main>
-    <footer class="footer"><span>SHORTFORM / LOCAL EDITION</span><span>Сделано для моментов, которые нельзя пропустить.</span></footer>
   </div>
 </body>
 </html>
