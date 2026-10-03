@@ -41,7 +41,7 @@ class TelegramPublisher:
                 )
             response.raise_for_status()
             payload = response.json()
-        except (requests.RequestException, ValueError) as exc:
+        except (requests.RequestException, ValueError):
             # requests exceptions can include the URL, which embeds the bot token.
             raise PublisherError("Telegram upload request failed; check network, bot rights and video size") from None
         if not payload.get("ok"):

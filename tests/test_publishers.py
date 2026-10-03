@@ -1,6 +1,7 @@
 """Contract tests for publishing without contacting social platforms."""
 
 import os
+import requests
 import sys
 import tempfile
 import unittest
@@ -90,7 +91,7 @@ class TelegramTests(unittest.TestCase):
             path = os.path.join(directory, "short.mp4")
             with open(path, "wb") as video:
                 video.write(b"fake-mp4")
-            post.side_effect = __import__("requests").RequestException("https://api.telegram.org/botsecret/sendVideo failed")
+            post.side_effect = requests.RequestException("https://api.telegram.org/botsecret/sendVideo failed")
             with self.assertRaises(PublisherError) as raised:
                 TelegramPublisher(bot_token="secret", chat_id="@mychannel").publish(
                     path, {"caption": "Test"}, privacy_status="public"

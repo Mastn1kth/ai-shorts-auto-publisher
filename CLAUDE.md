@@ -5,3 +5,4 @@
 - Publishing results are saved one platform at a time in `PUBLISH_LEDGER_FILE`. Keep this file and run publishing sequentially; the current ledger has no cross-process locking.
 - Hosted clips use the input source URL plus segment times for duplicate detection. Local clips use a SHA-256 of the rendered file. Recheck this behavior if changing clip boundaries or render output.
 - Run `python -m unittest discover -s tests -v` before publishing code changes. Mocked tests verify request flow, not live account permissions or platform processing.
+- Telegram uploads require explicit `--publish-privacy public`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID`; the regular Bot API rejects videos above 50 MB. A Telegram success does not confirm Dzen sync or native Dzen Video publication.
