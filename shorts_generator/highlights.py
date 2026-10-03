@@ -272,6 +272,7 @@ def dedupe_highlights(highlights: List[Dict]) -> List[Dict]:
 def get_highlights(
     transcript: Dict,
     num_clips: int = 3,
+    clip_duration: Optional[int] = None,
     llm_fn: Optional[LLMFn] = None,
 ) -> Dict:
     """Main entry point — returns {highlights: [...]} sorted by score.
@@ -303,4 +304,9 @@ def get_highlights(
         result = call_highlight_api(text, content_info, duration, num_clips=num_clips, llm_fn=llm_fn)
         highlights = dedupe_highlights(result.get("highlights", []))
 
+    if clip_duration:
+        for highlight in highlights:
+            start = float(highlight["start_time"])
+            highlight["end_time"] = min(float(highlight["end_time"]), start + clip_duration, float(duration))
+        highlights = [highlight for highlight in highlights if float(highlight["end_time"]) - float(highlight["start_time"]) >= 2]
     return {"highlights": highlights}

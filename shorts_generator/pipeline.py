@@ -22,6 +22,7 @@ def _run_local(
     language: Optional[str],
     llm_fn: Optional[Callable[[str], str]] = None,
     output_dir: Optional[str] = None,
+    clip_duration: Optional[int] = None,
 ) -> Dict:
     from .local.clipper import crop_highlights_local
     from .local.downloader import download_youtube_local
@@ -36,7 +37,7 @@ def _run_local(
             "Whisper produced no segments. The video may have no detectable speech."
         )
 
-    highlights_result = get_highlights(transcript, num_clips=num_clips, llm_fn=llm_fn or call_local_llm)
+    highlights_result = get_highlights(transcript, num_clips=num_clips, clip_duration=clip_duration, llm_fn=llm_fn or call_local_llm)
     all_highlights: List[Dict] = highlights_result.get("highlights", [])
     if not all_highlights:
         raise RuntimeError("Highlight generator returned zero clips.")
@@ -102,6 +103,7 @@ def generate_shorts(
     force_republish: bool = False,
     llm_fn: Optional[Callable[[str], str]] = None,
     output_dir: Optional[str] = None,
+    clip_duration: Optional[int] = None,
 ) -> Dict:
     """Run the full pipeline and return a structured result.
 
@@ -128,7 +130,7 @@ def generate_shorts(
         publish_platforms = validate_publish_request(publish_platforms, publish_privacy)
     mode = (mode or "api").lower()
     if mode == "local":
-        result = _run_local(youtube_url, num_clips, aspect_ratio, download_format, language, llm_fn, output_dir)
+        result = _run_local(youtube_url, num_clips, aspect_ratio, download_format, language, llm_fn, output_dir, clip_duration)
     elif mode == "api":
         result = _run_api(youtube_url, num_clips, aspect_ratio, download_format, language)
     else:

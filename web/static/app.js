@@ -10,8 +10,13 @@ const statusMessage = document.querySelector('#status-message');
 const clips = document.querySelector('#clips');
 const startButton = document.querySelector('#start-button');
 const connectionsPanel = document.querySelector('#connections');
+const videoMode = document.querySelector('#video-mode');
+const sequenceOptions = document.querySelector('#sequence-options');
 let lastState = '';
 let lastClipsSignature = '';
+function updateVideoMode() { sequenceOptions.hidden = videoMode.value !== 'sequence'; }
+videoMode.addEventListener('change', updateVideoMode);
+updateVideoMode();
 connectionsPanel.addEventListener('toggle', () => {
   connectionsPanel.querySelector('.summary-action').textContent = connectionsPanel.open ? 'ЗАКРЫТЬ ↑' : 'ОТКРЫТЬ ↗';
 });
