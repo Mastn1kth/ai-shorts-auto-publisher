@@ -20,6 +20,8 @@ class VKPublisher:
     def publish(self, video_path: str, metadata: Dict, privacy_status: str = "private", dry_run: bool = False) -> Dict:
         if dry_run:
             return {"platform": self.name, "status": "dry_run", "video_path": video_path}
+        if privacy_status not in {"private", "public"}:
+            raise PublisherError("VK Video visibility must be private or public")
         if not self.access_token:
             raise PublisherError("VK_ACCESS_TOKEN is not configured")
         if not os.path.isfile(video_path):
@@ -29,13 +31,13 @@ class VKPublisher:
             "v": self.api_version,
             "name": metadata["title"],
             "description": metadata.get("description", ""),
-            "is_private": 1 if privacy_status in {"private", "draft"} else 0,
-            "wallpost": 1 if os.getenv("VK_PUBLISH_TO_WALL", "false").lower() == "true" else 0,
+            "is_private": 1 if privacy_status == "private" else 0,
+            "wallpost": 1 if privacy_status == "public" and os.getenv("VK_PUBLISH_TO_WALL", "false").lower() == "true" else 0,
         }
         if self.group_id:
             params["group_id"] = self.group_id
         try:
-            response = requests.post(self.api_url, params=params, timeout=30)
+            response = requests.post(self.api_url, data=params, timeout=30)
             response.raise_for_status()
             payload = response.json()
             if "error" in payload:
@@ -48,6 +50,9 @@ class VKPublisher:
                 upload = requests.post(upload_url, files={"video_file": video_file}, timeout=1800)
             upload.raise_for_status()
             upload_payload = upload.json() if upload.content else {}
+            if "error" in upload_payload:
+                error = upload_payload["error"]
+                raise PublisherError(error.get("error_msg", str(error)) if isinstance(error, dict) else str(error))
             owner_id = saved.get("owner_id")
             video_id = saved.get("video_id")
             result = {

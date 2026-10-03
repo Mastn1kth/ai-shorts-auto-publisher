@@ -3,10 +3,12 @@
 import os
 import time
 from typing import Callable, Dict, Optional
+from urllib.parse import urlparse
 
 import requests
 
 from .base import PublisherError
+from .storage import public_video_url
 
 
 class InstagramPublisher:
@@ -23,38 +25,34 @@ class InstagramPublisher:
         self.poll_timeout = float(os.getenv("INSTAGRAM_POLL_TIMEOUT", "900"))
 
     def _public_url(self, video_path: str) -> str:
-        if video_path.startswith(("http://", "https://")):
-            return video_path
         if self.public_url_factory:
-            return self.public_url_factory(video_path)
-        template = os.getenv("INSTAGRAM_VIDEO_URL_TEMPLATE", "").strip()
-        if template:
-            return template.format(filename=os.path.basename(video_path), path=video_path)
-        raise PublisherError(
-            "Instagram requires a publicly reachable HTTPS video URL. "
-            "Configure INSTAGRAM_VIDEO_URL_TEMPLATE or an object-storage adapter."
-        )
+            url = self.public_url_factory(video_path)
+        else:
+            url = public_video_url(video_path)
+        parsed = urlparse(url)
+        if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
+            raise PublisherError("Instagram needs a publicly reachable HTTPS video URL")
+        return url
 
     def publish(self, video_path: str, metadata: Dict, privacy_status: str = "private", dry_run: bool = False) -> Dict:
         if dry_run:
             return {"platform": self.name, "status": "dry_run", "video_path": video_path}
         if not self.access_token or not self.user_id:
             raise PublisherError("INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_USER_ID are required")
-        if not os.path.isfile(video_path):
-            raise PublisherError(f"Video file not found: {video_path}")
-        if privacy_status in {"private", "draft"}:
-            raise PublisherError("Instagram Graph API does not provide a private Reel mode; use dry-run instead")
+        if privacy_status != "public":
+            raise PublisherError("Instagram Reels can only be published publicly; use --publish-privacy public")
         video_url = self._public_url(video_path)
+        headers = {"Authorization": f"Bearer {self.access_token}"}
         try:
             container_response = requests.post(
                 f"{self.base_url}/{self.user_id}/media",
-                params={
+                data={
                     "media_type": "REELS",
                     "video_url": video_url,
                     "caption": metadata.get("caption", ""),
                     "share_to_feed": os.getenv("INSTAGRAM_SHARE_TO_FEED", "true").lower() == "true",
-                    "access_token": self.access_token,
                 },
+                headers=headers,
                 timeout=30,
             )
             container_response.raise_for_status()
@@ -69,11 +67,14 @@ class InstagramPublisher:
             while True:
                 status_response = requests.get(
                     f"{self.base_url}/{creation_id}",
-                    params={"fields": "status_code,status", "access_token": self.access_token},
+                    params={"fields": "status_code,status"},
+                    headers=headers,
                     timeout=30,
                 )
                 status_response.raise_for_status()
                 status = status_response.json()
+                if "error" in status:
+                    raise PublisherError(status["error"].get("message", "Instagram status check failed"))
                 status_code = status.get("status_code")
                 if status_code == "FINISHED":
                     break
@@ -85,13 +86,16 @@ class InstagramPublisher:
 
             published = requests.post(
                 f"{self.base_url}/{self.user_id}/media_publish",
-                params={"creation_id": creation_id, "access_token": self.access_token},
+                data={"creation_id": creation_id},
+                headers=headers,
                 timeout=30,
             )
             published.raise_for_status()
             payload = published.json()
             if "error" in payload:
                 raise PublisherError(payload["error"].get("message", "Instagram publish failed"))
+            if not payload.get("id"):
+                raise PublisherError("Instagram did not return the published media id")
             return {"platform": self.name, "status": "published", "external_id": payload.get("id"), "creation_id": creation_id}
         except PublisherError:
             raise

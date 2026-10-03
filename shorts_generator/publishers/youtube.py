@@ -46,6 +46,8 @@ class YouTubePublisher:
     def publish(self, video_path: str, metadata: Dict, privacy_status: str = "private", dry_run: bool = False) -> Dict:
         if dry_run:
             return {"platform": self.name, "status": "dry_run", "video_path": video_path}
+        if privacy_status not in {"private", "unlisted", "public"}:
+            raise PublisherError("YouTube visibility must be private, unlisted, or public")
         if not os.path.isfile(video_path):
             raise PublisherError(f"Video file not found: {video_path}")
         try:

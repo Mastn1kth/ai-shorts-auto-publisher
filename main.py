@@ -37,7 +37,7 @@ def main() -> int:
         help="Publish rendered clips to one or more platforms",
     )
     parser.add_argument(
-        "--publish-privacy", choices=["private", "unlisted", "public", "draft"],
+        "--publish-privacy", choices=["private", "unlisted", "public"],
         default="private", help="Visibility requested from publishers (default: private)",
     )
     parser.add_argument(
@@ -83,6 +83,9 @@ def main() -> int:
             json.dump(result, f, indent=2)
         print(f"\nFull JSON written to {args.output_json}")
 
+    if any(status.get("status") == "failed" for short in result["shorts"]
+           for status in (short.get("publishing") or {}).values()):
+        return 2
     return 0
 
 
