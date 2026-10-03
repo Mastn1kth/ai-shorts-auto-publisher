@@ -1,0 +1,13 @@
+.env
+client_secret.json
+youtube-token.json
+output/
+*.pyc
+__pycache__/
+__pycache__/
+*.pyc
+.venv/
+venv/
+output/
+*.mp4
+.DS_Store
