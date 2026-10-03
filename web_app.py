@@ -110,7 +110,7 @@ def _safe_error(error: Exception, submitted_key: str) -> str:
     message = str(error)
     keys = [submitted_key] + [get_secret(name) for name in (
         "OPENAI_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "GROQ_API_KEY",
-        "VK_ACCESS_TOKEN", "TELEGRAM_BOT_TOKEN",
+        "VK_ACCESS_TOKEN", "TELEGRAM_BOT_TOKEN", "TIKTOK_ACCESS_TOKEN",
     )]
     for key in keys:
         if key:
