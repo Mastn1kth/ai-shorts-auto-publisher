@@ -180,8 +180,8 @@ def _run_job(job_id: str, settings: dict) -> None:
     global _active_job
     job = _jobs[job_id]
     job["status"] = "running"
-    _save_job(job)
     try:
+        _save_job(job)
         llm = make_llm(settings["provider"], settings["model"], settings["api_key"], settings["base_url"])
         result = generate_shorts(
             job["source"],
@@ -268,7 +268,7 @@ def restore_jobs() -> None:
     """Resume unfinished publication queues after a normal server restart."""
     if not JOBS_DIR.exists():
         return
-    for state_file in JOBS_DIR.glob("*/job.json"):
+    for state_file in sorted(JOBS_DIR.glob("*/job.json"), key=lambda path: path.stat().st_mtime):
         try:
             with open(state_file, encoding="utf-8") as stream:
                 job = json.load(stream)
@@ -403,7 +403,7 @@ def create_job():
             return jsonify(error="Дождитесь завершения текущей обработки"), 409
         job_id = uuid4().hex
         _active_job = job_id
-        _jobs[job_id] = {"id": job_id, "status": "queued", "shorts": [], "provider": settings["provider"], "model": settings["model"]}
+        _jobs[job_id] = {"id": job_id, "status": "queued", "shorts": [], "provider": settings["provider"], "model": settings["model"], "created_at": datetime.now().astimezone().isoformat()}
     folder = JOBS_DIR / job_id
     try:
         folder.mkdir(parents=True, exist_ok=False)

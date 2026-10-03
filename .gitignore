@@ -11,3 +11,8 @@ venv/
 output/
 *.mp4
 .DS_Store
+.playwright-cli/
+build/
+dist/
+*.spec
+.build-temp/

@@ -2,6 +2,8 @@
 
 import os
 import sys
+import traceback
+from pathlib import Path
 from threading import Thread
 
 from werkzeug.serving import make_server
@@ -32,4 +34,19 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        log_dir = Path(os.getenv("LOCALAPPDATA", Path.cwd())) / "ShortformStudio"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "startup-error.log"
+        log_file.write_text(traceback.format_exc(), encoding="utf-8")
+        if sys.platform == "win32":
+            import ctypes
+
+            ctypes.windll.user32.MessageBoxW(
+                None,
+                f"Не удалось запустить Shortform Studio. Подробности: {log_file}",
+                "Shortform Studio", 0x10,
+            )
+        raise
