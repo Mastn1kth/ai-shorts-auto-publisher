@@ -112,6 +112,6 @@ MEDIA_PUBLIC_BASE_URL=https://cdn.example.com
 
 `--output-json` содержит транскрипт, список кандидатов и массив `shorts`. У каждого клипа появляется объект `publishing` со статусом для каждой площадки: `dry_run`, `uploaded`, `published`, `already_uploaded`, `already_published` или `failed`, а также ID/ссылка либо сообщение об ошибке. Статус `uploaded` у YouTube и VK означает, что API принял загрузку; окончательную обработку на площадке нужно проверить отдельно.
 
-## Происхождение и лицензия
+## Лицензия
 
-Проект создан на основе [AI-Youtube-Shorts-Generator](https://github.com/Anil-matcha/AI-Youtube-Shorts-Generator) Anil Chandra Naidu Matcha. Исходная MIT-лицензия и уведомление об авторских правах сохранены в [LICENSE](LICENSE). Этот репозиторий имеет самостоятельную историю Git и не зарегистрирован на GitHub как fork.
+Проект распространяется по лицензии MIT. Полный текст лицензии и уведомление об авторских правах находятся в файле [LICENSE](LICENSE).
