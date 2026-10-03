@@ -19,7 +19,7 @@ def _account_marker(platform: str) -> str:
             return f"group:{group}"
         token = os.getenv("VK_ACCESS_TOKEN", "").strip()
         return "user-token:" + hashlib.sha256(token.encode("utf-8")).hexdigest()
-    return os.getenv("INSTAGRAM_USER_ID", "").strip()
+    raise ValueError(f"Unsupported platform: {platform}")
 
 
 def _clip_marker(video_path: str, source_id: Optional[str], short: Dict) -> str:
@@ -56,7 +56,7 @@ class PublishingLedger:
 
     def find(self, key: str) -> Optional[Dict]:
         result = self.items.get(key)
-        if result and result.get("status") not in {"uploaded", "published"}:
+        if result and result.get("status") != "uploaded":
             raise ValueError(f"Invalid publishing ledger entry in {self.path}")
         return result
 

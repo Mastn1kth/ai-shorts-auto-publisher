@@ -18,6 +18,4 @@ def build_metadata(short: Dict, platform: str) -> Dict:
         return {"title": title[:100], "description": description[:5000], "tags": ["shorts"]}
     if platform == "vk":
         return {"title": title[:250], "description": description[:2048]}
-    if platform == "instagram":
-        return {"caption": f"{title}\n\n{description}\n\n#reels".strip()[:2200]}
     raise ValueError(f"Unsupported platform: {platform}")

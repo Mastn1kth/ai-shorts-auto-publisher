@@ -7,7 +7,6 @@ from typing import Dict, Iterable, List, Optional
 import requests
 
 from .base import build_metadata
-from .instagram import InstagramPublisher
 from .ledger import PublishingLedger
 from .vk import VKPublisher
 from .youtube import YouTubePublisher
@@ -15,23 +14,20 @@ from .youtube import YouTubePublisher
 MAX_REMOTE_CLIP_BYTES = 1_000_000_000
 
 
-def validate_publish_request(platforms: Iterable[str], privacy_status: str, dry_run: bool = False) -> List[str]:
+def validate_publish_request(platforms: Iterable[str], privacy_status: str) -> List[str]:
     platforms = list(dict.fromkeys(p.strip().lower() for p in platforms if p.strip()))
-    invalid = sorted(set(platforms) - {"youtube", "vk", "instagram"})
+    invalid = sorted(set(platforms) - {"youtube", "vk"})
     if invalid:
         raise ValueError(f"Unsupported publishing platforms: {', '.join(invalid)}")
     if privacy_status not in {"private", "unlisted", "public"}:
         raise ValueError("publish_privacy must be private, unlisted, or public")
-    if not dry_run:
-        if "instagram" in platforms and privacy_status != "public":
-            raise ValueError("Instagram Reels require --publish-privacy public")
-        if "vk" in platforms and privacy_status == "unlisted":
-            raise ValueError("VK Video does not support unlisted visibility")
+    if "vk" in platforms and privacy_status == "unlisted":
+        raise ValueError("VK Video does not support unlisted visibility")
     return platforms
 
 
 def _publisher(platform: str):
-    return {"youtube": YouTubePublisher, "vk": VKPublisher, "instagram": InstagramPublisher}[platform]()
+    return {"youtube": YouTubePublisher, "vk": VKPublisher}[platform]()
 
 
 def publish_shorts(
@@ -39,7 +35,7 @@ def publish_shorts(
     dry_run: bool = False, source_id: Optional[str] = None, force_republish: bool = False,
 ) -> List[Dict]:
     """Publish each successfully rendered short to requested platforms."""
-    platforms = validate_publish_request(platforms, privacy_status, dry_run)
+    platforms = validate_publish_request(platforms, privacy_status)
     ledger = None if dry_run else PublishingLedger()
     results = []
     for short in shorts:
@@ -59,8 +55,7 @@ def publish_shorts(
                 key = None if dry_run else ledger.key(platform, video_path, short, source_id)
                 previous = None if dry_run or force_republish else ledger.find(key)
                 if previous:
-                    skipped_status = "already_published" if previous["status"] == "published" else "already_uploaded"
-                    item["publishing"][platform] = {**previous, "status": skipped_status, "previous_status": previous["status"]}
+                    item["publishing"][platform] = {**previous, "status": "already_uploaded", "previous_status": previous["status"]}
                     continue
                 publish_path = video_path
                 # API mode returns hosted clip URLs; upload-based publishers need a local file.
@@ -90,7 +85,7 @@ def publish_shorts(
                     dry_run=dry_run,
                 )
                 item["publishing"][platform] = outcome
-                if ledger and outcome.get("status") in {"uploaded", "published"}:
+                if ledger and outcome.get("status") == "uploaded":
                     try:
                         ledger.record(key, outcome)
                     except Exception as exc:

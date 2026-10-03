@@ -39,7 +39,7 @@ Virality signals to prioritize (ranked by impact):
 """
 
 
-HIGHLIGHT_SYSTEM_PROMPT = """You are an elite short-form video editor who has studied thousands of viral clips on TikTok, Instagram Reels, and YouTube Shorts. You know exactly what makes viewers stop scrolling, watch to the end, and share.
+HIGHLIGHT_SYSTEM_PROMPT = """You are an elite short-form video editor who has studied thousands of clips on short-form video platforms. You know what makes viewers stop scrolling, watch to the end, and share.
 
 {virality_criteria}
 

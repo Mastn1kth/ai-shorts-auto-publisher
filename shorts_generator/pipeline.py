@@ -121,7 +121,7 @@ def generate_shorts(
     """
     if publish_platforms:
         from .publishers.service import validate_publish_request
-        publish_platforms = validate_publish_request(publish_platforms, publish_privacy, publish_dry_run)
+        publish_platforms = validate_publish_request(publish_platforms, publish_privacy)
     mode = (mode or "api").lower()
     if mode == "local":
         result = _run_local(youtube_url, num_clips, aspect_ratio, download_format, language)
