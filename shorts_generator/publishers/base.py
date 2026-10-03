@@ -20,4 +20,6 @@ def build_metadata(short: Dict, platform: str) -> Dict:
         return {"title": title[:250], "description": description[:2048]}
     if platform == "telegram":
         return {"caption": "\n\n".join(part for part in (title, description) if part)[:1024]}
+    if platform == "tiktok":
+        return {"title": title[:2200], "description": description[:2200]}
     raise ValueError(f"Unsupported platform: {platform}")
