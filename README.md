@@ -1,354 +1,107 @@
-# AI YouTube Shorts Generator
+# AI Shorts Auto Publisher
 
-[![Powered by MuAPI](https://img.shields.io/badge/Powered%20by-MuAPI-6366f1?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyem0tMSAxNHYtNGgtMnYtMmg0djZoLTJ6bTAtOFY2aDJ2MmgtMnoiLz48L3N2Zz4=)](https://muapi.ai?utm_source=github&utm_medium=badge&utm_campaign=ai-youtube-shorts-generator)
+Создаёт короткие вертикальные ролики из длинного YouTube-видео или локального MP4 и отправляет готовые клипы в YouTube Shorts, VK Видео и Instagram Reels.
 
+Это CLI-проект для собственных аккаунтов. Он ищет фрагменты по транскрипту, нарезает видео и сохраняет результат публикации отдельно для каждой площадки. Публикация доступна только после настройки официальных API и разрешений соответствующих аккаунтов.
 
-**The open-source alternative to Opus Clip, Vidyo.ai, Klap, SubMagic, 2short.ai, and other AI clipping tools.** Drop in any long-form YouTube video and get back ranked, viral-ready 9:16 shorts — for free, with no per-clip credits, no watermarks, and full control over the highlight algorithm.
+## Что уже есть
 
-Built for creators, agencies, and developers who don't want to pay $20–$300/month or be capped on minutes processed. Uses GPT-class LLM highlight detection and Whisper transcription to extract the most viral-worthy moments and auto-crop them vertically for TikTok, Reels, and Shorts.
+- Обработка YouTube-ссылки или локального файла.
+- Два режима генерации: `api` через MuAPI и `local` через yt-dlp, faster-whisper, FFmpeg, OpenCV и OpenAI либо Gemini для выбора фрагментов.
+- Выбор интересных моментов, удаление сильно пересекающихся фрагментов, обрезка до вертикального формата.
+- Загрузка в YouTube через OAuth и YouTube Data API, в VK через `video.save` и upload URL, в Instagram через контейнер Reels и `media_publish`.
+- Отдельный статус каждой загрузки в JSON и код выхода `2`, если хотя бы одна публикация завершилась ошибкой.
 
-<p align="center"><a href="https://www.youtube.com/watch?v=8Ua5lRiePFg"><img src="https://i.ytimg.com/vi/8Ua5lRiePFg/maxresdefault.jpg" width="720"></a></p>
-<p align="center"><a href="https://www.youtube.com/watch?v=8Ua5lRiePFg"><b>▶ Watch: How to Access Kling 4.0 API - Best Alternative to Seedance 2 </b></a></p>
+`local` не означает полностью автономную работу: для выбора фрагментов всё ещё нужен ключ OpenAI или Gemini. Проект пока не добавляет субтитры и не содержит веб-интерфейса, планировщика либо защиты от повторной публикации при повторном запуске команды.
 
-> **Building your own Opus Clip–style SaaS?** Skip the infra and ship on the same APIs that power this repo:
-> - [AI Clipping API](https://muapi.ai/playground/ai-clipping?utm_source=github&utm_medium=readme&utm_campaign=ai-youtube-shorts-generator) — end-to-end clip selection + render
-> - [Auto-Crop API](https://muapi.ai/playground/autocrop?utm_source=github&utm_medium=readme&utm_campaign=ai-youtube-shorts-generator) — vertical reframing only
+## Установка
 
-![longshorts](https://github.com/user-attachments/assets/3f5d1abf-bf3b-475f-8abf-5e253003453a)
+Требуется Python 3.10+. В `local` режиме нужны FFmpeg в `PATH` и ресурсы для faster-whisper. Для YouTube-скачивания нужен yt-dlp.
 
-<p align="center">
-  <a href="https://github.com/Anil-matcha/awesome-generative-ai-apps">
-    <img src="https://img.shields.io/badge/Part%20of-Awesome%20Generative%20AI%20Apps-FFD700?style=for-the-badge&logo=github&logoColor=black" alt="Awesome Generative AI Apps">
-  </a>
-</p>
-
-> 🎨 **[Explore 50+ more open-source AI apps →](https://github.com/Anil-matcha/awesome-generative-ai-apps)**
-
-## Why Use This Instead of Opus Clip / Vidyo.ai / Klap?
-
-| | This repo | Opus Clip / Vidyo.ai / Klap / SubMagic |
-|---|---|---|
-| **Price** | Free + open source (pay only for API usage) | $20–$300/month subscriptions |
-| **Per-clip credits** | None — process unlimited videos | Monthly minute caps, overage fees |
-| **Watermarks** | Never | On free tiers |
-| **Highlight algorithm** | Fully editable virality framework | Black box |
-| **Output format** | Any aspect ratio, any resolution | Locked presets |
-| **Batch processing** | `xargs` an entire URL list | Manual upload one-by-one |
-| **JSON / API output** | Built-in (`--output-json`) | Limited or paid tier only |
-| **Self-hostable** | Yes — runs on your machine or server | SaaS only, your videos sit on their servers |
-| **White-label / embeddable** | Yes — MIT licensed, import as Python lib | No |
-
-## Features
-
-- **🎬 YouTube In, Vertical Out**: Hand it any YouTube URL — get back N viral-ready 9:16 mp4s
-- **🔀 Two Modes — API (fast) or Local (offline)**: Default `--mode api` uses MuAPI for download/transcription/cropping; `--mode local` runs entirely on your machine with `yt-dlp`, `faster-whisper`, and `ffmpeg`/`opencv`, and lets you pick OpenAI or Gemini for highlight ranking
-- **🤖 Virality-Aware Highlight Selection**: Clips ranked on hooks, emotional peaks, opinion bombs, revelation moments, conflict, quotable lines, story peaks, and practical value — not just generic "interesting"
-- **📈 Score + Hook + Reason for Every Clip**: Each highlight comes with a viral score, an opening hook line, and a one-sentence explanation of why it works
-- **🎤 Whisper Transcription, Your Choice**: Cloud (`/openai-whisper` via MuAPI) or local (`faster-whisper`, CPU or CUDA) — same downstream output shape
-- **🧩 Long-Video Aware**: Videos over 30 minutes are auto-chunked with overlap so nothing gets missed
-- **♻️ Smart Dedupe**: Overlapping highlights are collapsed by score so you never get two near-duplicate clips
-- **🎯 Smart Vertical Crop**: API mode uses MuAPI's auto-crop; local mode runs OpenCV face tracking with motion smoothing
-- **📱 Any Aspect Ratio**: 9:16 for TikTok/Reels/Shorts, 1:1 for square, anything else by flag
-- **🧰 CLI + Python Library**: Use it from the shell or import `generate_shorts(...)` into your own pipeline
-- **📦 JSON Output**: `--output-json` dumps the full result (transcript + every candidate highlight + final clip URLs/paths) for downstream automation
-
-## Quick Start (No Setup)
-
-Don't want to self-host? The [AI Clipping API](https://muapi.ai/playground/ai-clipping?utm_source=github&utm_medium=readme&utm_campaign=ai-youtube-shorts-generator) gives you the same Opus Clip–style pipeline as a single HTTP call — no Python, no dependencies, pay-per-clip instead of monthly subscriptions.
-
----
-
-## Installation (Self-Hosted)
-
-### Prerequisites
-
-- Python 3.10+
-- For **API mode (default)**: a MuAPI key — powers download, transcription, highlight ranking, and clipping in a single dependency
-- For **Local mode** (`--mode local`): `ffmpeg` on your PATH and an LLM API key (`OPENAI_API_KEY` or `GEMINI_API_KEY`; only the LLM step is remote)
-
-### Steps
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/SamurAIGPT/AI-Youtube-Shorts-Generator.git
-   cd AI-Youtube-Shorts-Generator
-   ```
-
-2. **Create and activate a virtual environment:**
-   ```bash
-   python3.10 -m venv venv
-   source venv/bin/activate
-   ```
-
-3. **Install Python dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   # Only if you plan to use --mode local:
-   pip install -r requirements-local.txt
-   ```
-
-4. **Set up environment variables:**
-
-   Create a `.env` file in the project root:
-   ```bash
-   # API mode (default)
-   MUAPI_API_KEY=your_muapi_key_here
-
-   # Local mode (--mode local)
-   LLM_PROVIDER=openai         # openai or gemini
-   OPENAI_API_KEY=your_openai_key_here
-   OPENAI_MODEL=gpt-4o-mini          # optional, default gpt-4o-mini
-   GEMINI_API_KEY=your_gemini_key_here
-   GEMINI_MODEL=gemini-2.5-flash      # optional, default gemini-2.5-flash
-   LOCAL_WHISPER_MODEL=base          # tiny / base / small / medium / large-v3
-   LOCAL_WHISPER_DEVICE=auto         # auto / cpu / cuda
-   LOCAL_OUTPUT_DIR=output           # where local mp4s land
-   ```
-
-## Usage
-
-### Single video (API mode — default)
-
-```bash
-python main.py "https://www.youtube.com/watch?v=VIDEO_ID"
+```powershell
+git clone https://github.com/Mastn1kth/ai-shorts-auto-publisher.git
+cd ai-shorts-auto-publisher
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements-local.txt
+pip install -r requirements-publish.txt
+Copy-Item .env.example .env
 ```
 
-### Single video (Local mode — runs offline except for the LLM call)
+На Linux/macOS активация окружения: `source .venv/bin/activate`, копирование настроек: `cp .env.example .env`.
 
-```bash
-python main.py "https://www.youtube.com/watch?v=VIDEO_ID" --mode local
+Для одного `api` режима достаточно `pip install -r requirements.txt`. Для локальных MP4, отправляемых в Instagram, нужен `boto3` из `requirements-publish.txt`. Зависимости устанавливаются только для используемых режимов.
+
+Заполните `.env` своими ключами. Не публикуйте `.env`, OAuth JSON и токены в Git.
+
+## Генерация роликов
+
+```powershell
+python main.py "https://www.youtube.com/watch?v=VIDEO_ID" --mode local --num-clips 3 --output-json result.json
 ```
 
-Local mode writes the rendered shorts to `./output/short_01.mp4`, `short_02.mp4`, … (override with `LOCAL_OUTPUT_DIR`).
+Для локального файла:
 
-### With options
-
-```bash
-python main.py "https://www.youtube.com/watch?v=VIDEO_ID" \
-    --mode api \
-    --num-clips 5 \
-    --aspect-ratio 9:16 \
-    --output-json result.json
+```powershell
+python main.py "D:\Videos\interview.mp4" --mode local --num-clips 3 --output-json result.json
 ```
 
-### Local file or path
+Ролики в `local` режиме сохраняются в `LOCAL_OUTPUT_DIR` (по умолчанию `output`). `api` режим возвращает URL клипов от MuAPI.
 
-In `--mode local`, you can pass a `file://` URL or a direct filesystem path and skip YouTube entirely:
+## Публикация
 
-```bash
-python main.py "/Users/you/Videos/input.mp4" --mode local
-python main.py "file:///Users/you/Videos/input.mp4" --mode local
+Проверка сценария без обращения к API публикации:
+
+```powershell
+python main.py "D:\Videos\interview.mp4" --mode local --publish youtube vk instagram --publish-dry-run --output-json dry-run.json
 ```
 
-The Python API works the same way:
+`--publish-dry-run` пропускает **только загрузку в соцсети**. Генерация роликов всё равно выполняется и может обращаться к MuAPI, OpenAI или Gemini. Эта проверка не подтверждает действительность токенов.
 
-```python
-from shorts_generator import generate_shorts
+Приватная загрузка на YouTube и VK:
 
-result = generate_shorts(
-    "/Users/you/Videos/input.mp4",
-    num_clips=5,
-    aspect_ratio="9:16",
-    mode="local",
-)
-for short in result["shorts"]:
-    print(short["score"], short["title"], short["clip_url"])
+```powershell
+python main.py "D:\Videos\interview.mp4" --mode local --publish youtube vk --publish-privacy private --output-json result.json
 ```
 
-Local transcription is cached as an `.srt` file in `LOCAL_OUTPUT_DIR` using the
-video's base name. If the cache already exists and is newer than the source
-file, the app reuses it instead of running Whisper again.
+Публичная загрузка на три площадки:
 
-Local downloads are also cached in `LOCAL_OUTPUT_DIR` as
-`source_<youtube_id>.mp4` when the input is a YouTube URL. If that file already
-exists, the app skips `yt-dlp` and reuses the cached video.
-
-### Batch processing
-
-Create a `urls.txt` file with one URL per line, then:
-
-```bash
-xargs -a urls.txt -I{} python main.py "{}"
+```powershell
+python main.py "D:\Videos\interview.mp4" --mode local --publish youtube vk instagram --publish-privacy public --output-json result.json
 ```
 
-### CLI flags
+`private` выбран по умолчанию. `unlisted` работает только для YouTube. Instagram Reels через этот API публикуются публично; для него нужно явно указать `--publish-privacy public`. Ошибочная комбинация отклоняется до обработки видео. Если одну площадку не удалось обработать, результат других остаётся в `result.json`; успешные загрузки повторный запуск команды автоматически не пропускает.
 
-| Flag | Default | Notes |
-|------|---------|-------|
-| `--mode` | `api` | `api` (MuAPI, fast, no setup) or `local` (remote URL, `file://`, or local path + faster-whisper + LLM provider + ffmpeg) |
-| `--num-clips` | `3` | How many shorts to render |
-| `--aspect-ratio` | `9:16` | Any ratio; `9:16` for TikTok/Reels, `1:1` for square |
-| `--format` | `720` | Source download resolution: `360` / `480` / `720` / `1080` |
-| `--language` | auto | Force Whisper language code (e.g. `en`) |
-| `--output-json` | — | Dump the full result (transcript + all candidates) to a file |
+### YouTube Shorts
 
-### API mode vs Local mode
+1. В Google Cloud включите YouTube Data API v3 и создайте OAuth-клиент типа Desktop.
+2. Скачайте JSON и укажите его путь в `YOUTUBE_CLIENT_SECRET_FILE`.
+3. При первой загрузке подтвердите доступ к своему YouTube-каналу в браузере. Токен сохраняется в `YOUTUBE_TOKEN_FILE`.
 
-| Step | API mode (`--mode api`) | Local mode (`--mode local`) |
-|---|---|---|
-| Download | MuAPI `/youtube-download` | `yt-dlp` for remote URLs, direct file path for local inputs |
-| Transcription | MuAPI `/openai-whisper` | `faster-whisper` (CPU or CUDA) |
-| Highlight LLM | MuAPI `gpt-5-mini` | `LLM_PROVIDER=openai` uses OpenAI (`gpt-4o-mini` by default), `LLM_PROVIDER=gemini` uses Gemini (`gemini-2.5-flash` by default) |
-| Vertical crop | MuAPI `/autocrop` | `ffmpeg` + OpenCV face tracking |
-| Output | hosted URLs | local mp4 paths |
-| Required keys | `MUAPI_API_KEY` | `OPENAI_API_KEY` or `GEMINI_API_KEY` (+ `ffmpeg` on PATH) |
-
-## How It Works
-
-1. **Download**: Fetches the source video from YouTube
-2. **Transcribe**: MuAPI `/openai-whisper` produces a timestamped transcript (verbose_json segments)
-3. **Detect content type**: An LLM classifies the video (podcast, interview, tutorial, vlog, etc.) and density, so the prompt can be tuned per content style
-4. **Long-video chunking**: Videos > 30 min are split into 20-min overlapping chunks
-5. **Highlight ranking**: An LLM scans the transcript through a virality framework — hook moments, emotional peaks, opinion bombs, revelations, conflict, quotables, story peaks, practical value — and emits ranked candidates with scores 0–100
-6. **Dedupe**: Overlapping candidates are collapsed by score (>50% overlap → keep the higher score)
-7. **Top-N selection**: The top `--num-clips` candidates are selected
-8. **Auto-crop**: Each highlight is rendered as a vertical short at the requested aspect ratio
-
-**Output**: a list of mp4 URLs plus, for each clip, its title, viral score, hook sentence, and a one-line reason explaining why it should perform.
-
-## Output
-
-Console output looks like:
-
-```
-========================================================================
-Highlights:    7 candidates → kept top 3
-========================================================================
-
-#1  score=92  124.3s → 187.6s
-     title:  The one mistake that cost me $50K
-     hook:   "Nobody talks about this, but it killed my first startup..."
-     clip:   https://.../short_1.mp4
-
-#2  score=88  ...
-```
-
-`--output-json result.json` produces:
-
-```json
-{
-  "source_video_url": "...",
-  "transcript": { "duration": 1873.4, "segments": [...] },
-  "highlights": [ {...}, {...}, ... ],
-  "shorts": [
-    {
-      "title": "...",
-      "start_time": 124.3,
-      "end_time": 187.6,
-      "score": 92,
-      "hook_sentence": "...",
-      "virality_reason": "...",
-      "clip_url": "https://.../short_1.mp4"
-    }
-  ]
-}
-```
-
-## Configuration
-
-### Highlight selection criteria
-Edit `shorts_generator/highlights.py`:
-- **Virality framework**: `VIRALITY_CRITERIA` — the ranked list of signals the LLM optimizes for
-- **System prompt**: `HIGHLIGHT_SYSTEM_PROMPT` — duration sweet spot, hook rules, JSON schema
-- **Chunk size**: `CHUNK_SIZE_SECONDS` (default 1200) — chunk length for long videos
-- **Long-video threshold**: `LONG_VIDEO_THRESHOLD` (default 1800) — videos longer than this are chunked
-- **Chunk overlap**: `CHUNK_OVERLAP_SECONDS` (default 60) — overlap between chunks so cross-boundary clips aren't missed
-
-### Polling / timeout
-Edit `shorts_generator/config.py` (or set env vars):
-- `MUAPI_POLL_INTERVAL` (default 5s) — seconds between job-status polls
-- `MUAPI_POLL_TIMEOUT` (default 1800s) — give up after this long
-
-### Whisper transcription
-Audio is transcribed by MuAPI's `/openai-whisper` endpoint (server-side `whisper-1`). Pass `--language <code>` to lock the recognition to a specific language; otherwise it auto-detects.
-
-## Project Structure
-
-```
-AI-Youtube-Shorts-Generator/
-├── main.py                       CLI entry point
-├── requirements.txt              core deps (api mode)
-├── requirements-local.txt        optional deps for --mode local
-├── .env.example
-└── shorts_generator/
-    ├── config.py                 env / settings (MuAPI + local LLM + Whisper)
-    ├── muapi.py                  generic submit + poll wrapper
-    ├── downloader.py             API mode: YouTube download via MuAPI
-    ├── transcriber.py            API mode: MuAPI /openai-whisper client
-    ├── highlights.py             shared LLM virality ranking (pluggable backend)
-    ├── clipper.py                API mode: MuAPI /autocrop
-    ├── pipeline.py               mode dispatcher (api ↔ local)
-    └── local/                    --mode local backends (offline)
-        ├── downloader.py         yt-dlp download
-        ├── transcriber.py        faster-whisper transcription
-        ├── llm.py                OpenAI or Gemini client selector
-        └── clipper.py            ffmpeg cut + OpenCV vertical crop
-```
-
-## Troubleshooting
-
-### Whisper produced no segments
-The video may have no detectable speech, or it may be in a language Whisper struggles with. Try passing `--language en` (or the correct ISO-639-1 code) to skip auto-detection.
-
-### Looking for better results?
-The [AI Clipping API](https://muapi.ai/playground/ai-clipping?utm_source=github&utm_medium=readme&utm_campaign=ai-youtube-shorts-generator) uses an improved algorithm that produces higher-quality clips with better highlight detection.
-
-## Contributing
-
-Contributions are welcome! Please fork the repository and submit a pull request.
-
-## Publishing to YouTube, VK and Instagram
-
-Generated clips can be sent to one or more platforms after rendering:
-
-```bash
-python main.py "https://www.youtube.com/watch?v=VIDEO_ID" \
-  --mode local --num-clips 3 \
-  --publish youtube vk instagram \
-  --publish-privacy private
-```
-
-Use `--publish-dry-run` to verify the selected platforms without uploading files.
-The default visibility is `private`. Instagram does not expose a private Reel mode
-through its publishing API, so Instagram is rejected unless a public/unlisted-style
-publish mode is explicitly requested.
-
-### YouTube
-
-Create an OAuth Desktop application in Google Cloud Console, enable YouTube Data API
-v3, download the client JSON, and set `YOUTUBE_CLIENT_SECRET_FILE`. The first upload
-opens a browser for consent and saves a refresh token to `YOUTUBE_TOKEN_FILE`.
-Unverified Google API projects may keep API uploads private until the project passes
-Google's audit.
+Не прошедшие аудит проекты YouTube API могут загружать видео только как приватные. Возвращённая ссылка не означает, что YouTube закончил обработку ролика. [Документация `videos.insert`](https://developers.google.com/youtube/v3/docs/videos/insert).
 
 ### VK Видео
 
-Set `VK_ACCESS_TOKEN`. To upload into a community, also set `VK_GROUP_ID`. Set
-`VK_PUBLISH_TO_WALL=true` only when the video should also be attached to the group's
-wall post.
+Укажите `VK_ACCESS_TOKEN`. Для сообщества заполните `VK_GROUP_ID`; аккаунт и токен должны иметь право загружать видео в это сообщество. `VK_PUBLISH_TO_WALL=true` публикует видео на стене при публичном режиме. Код запрашивает `video.save`, затем отправляет MP4 на полученный upload URL. `unlisted` для VK не поддерживается.
 
 ### Instagram Reels
 
-Instagram publishing requires a professional (Business or Creator) account, an
-Instagram publishing access token, and `INSTAGRAM_USER_ID`. Instagram's API reads the
-video from a public HTTPS URL. For API-mode clips, the returned hosted URL is used
-directly. For local clips, configure `INSTAGRAM_VIDEO_URL_TEMPLATE` or replace the
-publisher's storage hook with S3/R2/MinIO upload logic.
+Нужен профессиональный аккаунт Instagram (Business или Creator), действующий токен с разрешением на публикацию и `INSTAGRAM_USER_ID`. Эта реализация использует вариант Instagram API с Facebook Login.
 
-Publishing results are kept per clip and per platform in `--output-json`; a failure
-on one platform does not discard successful uploads to the others.
+Instagram должен получить ролик по публичному HTTPS URL. Для клипа, созданного через MuAPI, используется его hosted URL. Для локального MP4 настройте S3-совместимое хранилище:
 
-## License
+```dotenv
+MEDIA_S3_BUCKET=my-bucket
+MEDIA_S3_ENDPOINT=https://s3.example.com
+MEDIA_PUBLIC_BASE_URL=https://cdn.example.com
+```
 
-This project is licensed under the MIT License.
+Ключи хранилища `boto3` берёт из стандартной цепочки AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, профиль или роль). Сам бакет/CDN должен позволять Instagram читать загруженный объект по URL. Проект загружает MP4 в бакет, ждёт готовности контейнера Instagram и вызывает `media_publish`. Настроить права бакета и доступность CDN нужно в вашем хранилище.
 
-## Related Projects
+## Как устроен результат
 
-- [awesome-vibecoded-saas](https://github.com/Anil-matcha/awesome-vibecoded-saas) — broader catalog of open-source SaaS alternatives featuring this Shorts workflow.
-- [Muapi open-source alternatives](https://muapi.ai/open-source/alternative) — compare the Shorts workflow with the paid creator tools it targets.
-- [AI Influencer Generator](https://github.com/SamurAIGPT/AI-Influencer-Generator)
-- [Text to Video AI](https://github.com/SamurAIGPT/Text-To-Video-AI)
-- [Faceless Video Generator](https://github.com/SamurAIGPT/Faceless-Video-Generator)
-- [AI B-roll Generator](https://github.com/Anil-matcha/AI-B-roll)
-- [No-code YouTube Shorts Generator](https://www.vadoo.tv/clip-youtube-video)
-- [ai-creator-academy](https://github.com/Anil-matcha/ai-creator-academy) — free curriculum teaching creators how to monetize AI-generated shorts and video content
+`--output-json` содержит транскрипт, список кандидатов и массив `shorts`. У каждого клипа появляется объект `publishing` со статусом для каждой площадки: `dry_run`, `uploaded`, `published` или `failed`, а также ID/ссылка либо сообщение об ошибке. Статус `uploaded` у YouTube и VK означает, что API принял загрузку; окончательную обработку на площадке нужно проверить отдельно.
+
+## Происхождение и лицензия
+
+Проект создан на основе [AI-Youtube-Shorts-Generator](https://github.com/Anil-matcha/AI-Youtube-Shorts-Generator) Anil Chandra Naidu Matcha. Исходная MIT-лицензия и уведомление об авторских правах сохранены в [LICENSE](LICENSE). Этот репозиторий имеет самостоятельную историю Git и не зарегистрирован на GitHub как fork.
