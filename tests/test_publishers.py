@@ -5,6 +5,8 @@ import sys
 import tempfile
 import types
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from unittest.mock import Mock, patch
 
 from shorts_generator.publishers.base import PublisherError
@@ -13,6 +15,7 @@ from shorts_generator.publishers.service import publish_shorts, validate_publish
 from shorts_generator.publishers.storage import public_video_url
 from shorts_generator.publishers.vk import VKPublisher
 from shorts_generator.pipeline import generate_shorts
+import main as cli
 
 
 class PublishRequestTests(unittest.TestCase):
@@ -100,6 +103,22 @@ class VKTests(unittest.TestCase):
                 VKPublisher(access_token="test-token").publish(path, {"title": "Test"})
             self.assertEqual(post.call_args_list[0].kwargs["data"]["access_token"], "test-token")
             self.assertNotIn("test-token", str(post.call_args_list[0].args))
+
+
+class CLITests(unittest.TestCase):
+    def test_failed_platform_returns_nonzero(self):
+        generated = {
+            "mode": "local", "source_video_url": "input.mp4", "highlights": [{}],
+            "shorts": [{
+                "score": 50, "start_time": 1.0, "end_time": 5.0,
+                "title": "Test", "hook_sentence": "Test", "clip_url": "short.mp4",
+                "publishing": {"vk": {"status": "failed", "error": "upload rejected"}},
+            }],
+        }
+        with patch.object(sys, "argv", ["main.py", "input.mp4", "--mode", "local", "--publish", "vk"]):
+            with patch.object(cli, "generate_shorts", return_value=generated):
+                with redirect_stdout(StringIO()):
+                    self.assertEqual(cli.main(), 2)
 
 
 if __name__ == "__main__":
