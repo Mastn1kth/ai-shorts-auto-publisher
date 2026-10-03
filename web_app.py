@@ -3,6 +3,10 @@
 import os
 import re
 import secrets
+import json
+import subprocess
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from threading import Lock, Thread
 from urllib.parse import urlparse
@@ -14,6 +18,7 @@ from shorts_generator import generate_shorts
 from shorts_generator.local.llm import make_llm
 from shorts_generator.local.downloader import _extract_youtube_video_id
 from shorts_generator.publishers.service import validate_publish_request
+from shorts_generator.publishers.service import publish_shorts
 
 
 ROOT = Path(__file__).resolve().parent
@@ -27,6 +32,41 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
 _jobs = {}
 _lock = Lock()
 _active_job = None
+_publish_lock = Lock()
+
+
+def _save_job(job: dict) -> None:
+    folder = JOBS_DIR / job["id"]
+    target = folder / "job.json"
+    temporary = folder / "job.json.tmp"
+    with open(temporary, "w", encoding="utf-8") as stream:
+        json.dump(job, stream, ensure_ascii=False, indent=2)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, target)
+
+
+def _schedule_times(count: int, interval_minutes: int, start_at: str) -> list:
+    now = datetime.now().astimezone()
+    if start_at:
+        start = datetime.fromisoformat(start_at).astimezone()
+        if start < now:
+            raise ValueError("Время первой публикации должно быть в будущем")
+    else:
+        start = now
+    return [(start + timedelta(minutes=index * interval_minutes)).isoformat() for index in range(count)]
+
+
+def _thumbnail(video_path: str, target: Path) -> bool:
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error", "-ss", "0.5", "-i", video_path,
+             "-frames:v", "1", "-vf", "scale=320:320:force_original_aspect_ratio=decrease", "-q:v", "4", str(target)],
+            check=True, capture_output=True, timeout=60,
+        )
+        return target.is_file()
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return False
 
 
 def _safe_error(error: Exception, submitted_key: str) -> str:
@@ -67,6 +107,18 @@ def _settings(form):
         raise ValueError("Можно создать от 1 до 10 клипов за запуск")
     privacy = form.get("privacy", "private")
     platforms = validate_publish_request(form.getlist("platforms"), privacy)
+    try:
+        interval_minutes = int(form.get("interval_minutes", "60"))
+    except ValueError as exc:
+        raise ValueError("Интервал публикации должен быть числом") from exc
+    if not 1 <= interval_minutes <= 10080:
+        raise ValueError("Интервал должен быть от 1 минуты до 7 дней")
+    start_at = form.get("start_at", "").strip()
+    if start_at:
+        try:
+            _schedule_times(1, interval_minutes, start_at)
+        except (ValueError, OverflowError) as exc:
+            raise ValueError("Некорректное время первой публикации") from exc
     return {
         "provider": provider,
         "model": model,
@@ -76,6 +128,8 @@ def _settings(form):
         "platforms": platforms,
         "privacy": privacy,
         "dry_run": form.get("dry_run") == "on",
+        "interval_minutes": interval_minutes,
+        "start_at": start_at,
     }
 
 
@@ -103,30 +157,96 @@ def _run_job(job_id: str, settings: dict) -> None:
             num_clips=settings["num_clips"],
             llm_fn=llm,
             output_dir=str(JOBS_DIR / job_id),
-            publish_platforms=settings["platforms"],
-            publish_privacy=settings["privacy"],
-            publish_dry_run=settings["dry_run"],
         )
+        for index, short in enumerate(result["shorts"]):
+            if short.get("clip_url"):
+                thumbnail_path = JOBS_DIR / job_id / f"thumbnail_{index:02d}.jpg"
+                if _thumbnail(short["clip_url"], thumbnail_path):
+                    short["thumbnail_path"] = str(thumbnail_path)
+        job["raw_shorts"] = result["shorts"]
+        job["clip_paths"] = [short.get("clip_url") for short in result["shorts"]]
+        due_times = _schedule_times(
+            len(result["shorts"]), settings["interval_minutes"],
+            "" if settings["dry_run"] else settings["start_at"],
+        ) if settings["platforms"] else []
         job["shorts"] = [
             {
                 "title": short.get("title"),
+                "description": "\n\n".join(part for part in (short.get("hook_sentence"), short.get("virality_reason")) if part),
                 "score": short.get("score"),
                 "start_time": short.get("start_time"),
                 "end_time": short.get("end_time"),
                 "error": short.get("error"),
-                "publishing": short.get("publishing") or {},
+                "publishing": {platform: {"status": "scheduled"} for platform in settings["platforms"]} if short.get("clip_url") else {},
                 "video_url": f"/api/jobs/{job_id}/clips/{index}" if short.get("clip_url") else None,
+                "thumbnail_url": f"/api/jobs/{job_id}/thumbnails/{index}" if short.get("thumbnail_path") else None,
+                "scheduled_at": due_times[index] if due_times and short.get("clip_url") else None,
             }
             for index, short in enumerate(result["shorts"])
         ]
-        job["clip_paths"] = [short.get("clip_url") for short in result["shorts"]]
+        job["platforms"] = settings["platforms"]
+        job["privacy"] = settings["privacy"]
+        job["dry_run"] = settings["dry_run"]
+        job["publish_state"] = "pending" if settings["platforms"] else "none"
         job["status"] = "completed"
+        _save_job(job)
+        if settings["platforms"]:
+            Thread(target=_publish_job, args=(job_id,), daemon=True).start()
     except Exception as exc:
         job["error"] = _safe_error(exc, settings["api_key"])
         job["status"] = "failed"
+        _save_job(job)
     finally:
         with _lock:
             _active_job = None
+
+
+def _publish_job(job_id: str) -> None:
+    job = _jobs[job_id]
+    for index, short in enumerate(job["raw_shorts"]):
+        if not short.get("clip_url"):
+            continue
+        if all(status.get("status") in {"uploaded", "already_uploaded", "dry_run"}
+               for status in job["shorts"][index]["publishing"].values()):
+            continue
+        due = datetime.fromisoformat(job["shorts"][index]["scheduled_at"])
+        while True:
+            seconds = (due - datetime.now().astimezone()).total_seconds()
+            if seconds <= 0:
+                break
+            time.sleep(min(seconds, 60))
+        try:
+            with _publish_lock:
+                result = publish_shorts(
+                    [short], job["platforms"], privacy_status=job["privacy"],
+                    dry_run=job["dry_run"], source_id=job["source"],
+                )[0]
+            job["shorts"][index]["publishing"] = result["publishing"]
+        except Exception as exc:
+            job["shorts"][index]["publishing"] = {
+                platform: {"status": "failed", "error": _safe_error(exc, "")}
+                for platform in job["platforms"]
+            }
+        _save_job(job)
+    job["publish_state"] = "finished"
+    _save_job(job)
+
+
+def restore_jobs() -> None:
+    """Resume unfinished publication queues after a normal server restart."""
+    if not JOBS_DIR.exists():
+        return
+    for state_file in JOBS_DIR.glob("*/job.json"):
+        try:
+            with open(state_file, encoding="utf-8") as stream:
+                job = json.load(stream)
+            if job.get("id") != state_file.parent.name:
+                continue
+            _jobs[job["id"]] = job
+            if job.get("status") == "completed" and job.get("publish_state") == "pending":
+                Thread(target=_publish_job, args=(job["id"],), daemon=True).start()
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
 
 
 @app.get("/")
@@ -188,7 +308,7 @@ def get_job(job_id):
     job = _jobs.get(job_id)
     if job is None:
         abort(404)
-    return jsonify({key: value for key, value in job.items() if key != "clip_paths"})
+    return jsonify({key: value for key, value in job.items() if key not in {"clip_paths", "raw_shorts", "source"}})
 
 
 @app.get("/api/jobs/<job_id>/clips/<int:index>")
@@ -203,6 +323,17 @@ def get_clip(job_id, index):
     return send_file(path, mimetype="video/mp4")
 
 
+@app.get("/api/jobs/<job_id>/thumbnails/<int:index>")
+def get_thumbnail(job_id, index):
+    if job_id not in _jobs or index < 0 or index >= len(_jobs[job_id].get("shorts", [])):
+        abort(404)
+    path = JOBS_DIR / job_id / f"thumbnail_{index:02d}.jpg"
+    if not path.is_file():
+        abort(404)
+    return send_file(path, mimetype="image/jpeg")
+
+
 if __name__ == "__main__":
+    restore_jobs()
     print("Откройте http://127.0.0.1:8765 в браузере")
     app.run(host="127.0.0.1", port=8765, debug=False, use_reloader=False)

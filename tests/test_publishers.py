@@ -14,6 +14,7 @@ from shorts_generator.publishers.ledger import PublishingLedger
 from shorts_generator.publishers.service import publish_shorts, validate_publish_request
 from shorts_generator.publishers.telegram import TelegramPublisher
 from shorts_generator.publishers.vk import VKPublisher
+from shorts_generator.publishers.youtube import YouTubePublisher
 from shorts_generator.pipeline import generate_shorts
 import main as cli
 
@@ -109,6 +110,41 @@ class TelegramTests(unittest.TestCase):
                     path, {"caption": "Test"}, privacy_status="public"
                 )
             post.assert_not_called()
+
+    @patch("shorts_generator.publishers.telegram.requests.post")
+    def test_thumbnail_is_sent_when_small_jpeg_exists(self, post):
+        with tempfile.TemporaryDirectory() as directory:
+            video_path = os.path.join(directory, "short.mp4")
+            thumbnail_path = os.path.join(directory, "thumbnail.jpg")
+            with open(video_path, "wb") as video:
+                video.write(b"fake-mp4")
+            with open(thumbnail_path, "wb") as thumbnail:
+                thumbnail.write(b"fake-jpeg")
+            post.return_value.json.return_value = {"ok": True, "result": {"message_id": 42}}
+            TelegramPublisher(bot_token="secret", chat_id="@mychannel").publish(
+                video_path, {"caption": "Test", "thumbnail_path": thumbnail_path}, privacy_status="public"
+            )
+            self.assertIn("thumbnail", post.call_args.kwargs["files"])
+
+
+class YouTubeTests(unittest.TestCase):
+    def test_custom_thumbnail_failure_does_not_hide_successful_video_upload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            video_path = os.path.join(directory, "short.mp4")
+            thumbnail_path = os.path.join(directory, "thumbnail.jpg")
+            for path in (video_path, thumbnail_path):
+                with open(path, "wb") as item:
+                    item.write(b"fake")
+            service = Mock()
+            service.videos.return_value.insert.return_value.next_chunk.return_value = (None, {"id": "youtube-id"})
+            service.thumbnails.return_value.set.return_value.execute.side_effect = RuntimeError("not allowed")
+            with patch("googleapiclient.http.MediaFileUpload"):
+                with patch.object(YouTubePublisher, "_service", return_value=service):
+                    result = YouTubePublisher().publish(
+                        video_path, {"title": "Test", "thumbnail_path": thumbnail_path}, privacy_status="private"
+                    )
+            self.assertEqual(result["status"], "uploaded")
+            self.assertEqual(result["thumbnail_status"], "failed")
 
 
 class LedgerTests(unittest.TestCase):

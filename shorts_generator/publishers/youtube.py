@@ -78,11 +78,23 @@ class YouTubePublisher:
             while response is None:
                 _, response = request.next_chunk()
             video_id = response["id"]
-            return {
+            result = {
                 "platform": self.name,
                 "status": "uploaded",
                 "external_id": video_id,
                 "url": f"https://www.youtube.com/shorts/{video_id}",
             }
+            thumbnail_path = metadata.get("thumbnail_path")
+            if thumbnail_path and os.path.isfile(thumbnail_path):
+                try:
+                    service.thumbnails().set(
+                        videoId=video_id,
+                        media_body=MediaFileUpload(thumbnail_path, mimetype="image/jpeg"),
+                    ).execute()
+                    result["thumbnail_status"] = "uploaded"
+                except Exception:
+                    result["thumbnail_status"] = "failed"
+                    result["thumbnail_error"] = "YouTube rejected the custom thumbnail; check channel eligibility"
+            return result
         except Exception as exc:
             raise PublisherError(f"YouTube upload failed: {exc}") from exc

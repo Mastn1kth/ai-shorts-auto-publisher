@@ -81,9 +81,12 @@ def publish_shorts(
                         publish_path = temporary_path
                     finally:
                         download.close()
+                metadata = build_metadata(short, platform)
+                if short.get("thumbnail_path"):
+                    metadata["thumbnail_path"] = short["thumbnail_path"]
                 outcome = _publisher(platform).publish(
                     publish_path,
-                    build_metadata(short, platform),
+                    metadata,
                     privacy_status=privacy_status,
                     dry_run=dry_run,
                 )

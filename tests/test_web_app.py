@@ -65,6 +65,53 @@ class WebAppTests(unittest.TestCase):
         response = self._post(video=None, source_url="https://evil.example/video")
         self.assertEqual(response.status_code, 400)
 
+    def test_schedule_defaults_to_one_hour_between_clips(self):
+        due = web_app._schedule_times(3, 60, "")
+        from datetime import datetime
+        self.assertEqual((datetime.fromisoformat(due[1]) - datetime.fromisoformat(due[0])).total_seconds(), 3600)
+
+    def test_generation_saves_descriptions_and_queue_without_api_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(web_app, "JOBS_DIR", Path(directory)):
+                job_id = "test-job"
+                folder = Path(directory) / job_id
+                folder.mkdir()
+                video = folder / "short_01.mp4"
+                video.write_bytes(b"fake")
+                web_app._jobs[job_id] = {"id": job_id, "source": str(folder / "source.mp4"), "status": "queued", "shorts": []}
+                settings = {
+                    "provider": "openai", "model": "test", "api_key": "private-key", "base_url": "",
+                    "num_clips": 1, "platforms": ["youtube"], "privacy": "private",
+                    "dry_run": False, "interval_minutes": 60, "start_at": "",
+                }
+                result = {"shorts": [{"clip_url": str(video), "title": "Moment", "hook_sentence": "Hook", "virality_reason": "Why"}]}
+                with patch.object(web_app, "make_llm", return_value=lambda _: ""):
+                    with patch.object(web_app, "generate_shorts", return_value=result):
+                        with patch.object(web_app, "_thumbnail", return_value=False):
+                            with patch.object(web_app, "Thread"):
+                                web_app._run_job(job_id, settings)
+                job = web_app._jobs[job_id]
+                self.assertEqual(job["status"], "completed")
+                self.assertEqual(job["shorts"][0]["description"], "Hook\n\nWhy")
+                self.assertEqual(job["shorts"][0]["publishing"]["youtube"]["status"], "scheduled")
+                self.assertNotIn("private-key", (folder / "job.json").read_text(encoding="utf-8"))
+
+    def test_publish_queue_updates_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(web_app, "JOBS_DIR", Path(directory)):
+                job_id = "test-job"
+                (Path(directory) / job_id).mkdir()
+                web_app._jobs[job_id] = {
+                    "id": job_id, "source": "source", "status": "completed", "platforms": ["vk"],
+                    "privacy": "public", "dry_run": False, "publish_state": "pending",
+                    "raw_shorts": [{"clip_url": "clip.mp4"}],
+                    "shorts": [{"scheduled_at": "2020-01-01T00:00:00+00:00", "publishing": {"vk": {"status": "scheduled"}}}],
+                }
+                with patch.object(web_app, "publish_shorts", return_value=[{"publishing": {"vk": {"status": "uploaded"}}}]):
+                    web_app._publish_job(job_id)
+                self.assertEqual(web_app._jobs[job_id]["shorts"][0]["publishing"]["vk"]["status"], "uploaded")
+                self.assertEqual(web_app._jobs[job_id]["publish_state"], "finished")
+
 
 if __name__ == "__main__":
     unittest.main()

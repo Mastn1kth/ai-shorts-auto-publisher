@@ -1,6 +1,7 @@
 """Publish MP4 clips to a Telegram channel through the official Bot API."""
 
 import os
+from contextlib import ExitStack
 from typing import Dict, Optional
 
 import requests
@@ -32,11 +33,17 @@ class TelegramPublisher:
 
         endpoint = f"https://api.telegram.org/bot{self.bot_token}/sendVideo"
         try:
-            with open(video_path, "rb") as video:
+            with ExitStack() as stack:
+                video = stack.enter_context(open(video_path, "rb"))
+                files = {"video": (os.path.basename(video_path), video, "video/mp4")}
+                thumbnail_path = metadata.get("thumbnail_path")
+                if thumbnail_path and os.path.isfile(thumbnail_path) and os.path.getsize(thumbnail_path) < 200_000:
+                    thumbnail = stack.enter_context(open(thumbnail_path, "rb"))
+                    files["thumbnail"] = ("thumbnail.jpg", thumbnail, "image/jpeg")
                 response = requests.post(
                     endpoint,
                     data={"chat_id": self.chat_id, "caption": metadata["caption"], "supports_streaming": "true"},
-                    files={"video": (os.path.basename(video_path), video, "video/mp4")},
+                    files=files,
                     timeout=(30, 1800),
                 )
             response.raise_for_status()

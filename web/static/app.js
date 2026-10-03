@@ -13,6 +13,8 @@ const jobState = document.querySelector('#job-state');
 const statusMessage = document.querySelector('#status-message');
 const clips = document.querySelector('#clips');
 const startButton = document.querySelector('#start-button');
+let lastState = '';
+let lastClipsSignature = '';
 const modelExamples = {
   openai: 'gpt-4o-mini',
   gemini: 'gemini-2.5-flash',
@@ -76,7 +78,8 @@ function showStatus(state, message) {
   results.hidden = false;
   jobState.textContent = state;
   statusMessage.textContent = message;
-  results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (state !== lastState) results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  lastState = state;
 }
 
 function renderClips(shorts) {
@@ -87,10 +90,18 @@ function renderClips(shorts) {
     const media = document.createElement('div');
     media.className = 'clip-media';
     if (item.video_url) {
+      if (item.thumbnail_url) {
+        const thumbnail = document.createElement('img');
+        thumbnail.src = item.thumbnail_url;
+        thumbnail.alt = `Превью: ${item.title || `клип ${index + 1}`}`;
+        thumbnail.className = 'clip-thumbnail';
+        media.append(thumbnail);
+      }
       const video = document.createElement('video');
       video.controls = true;
       video.preload = 'metadata';
       video.src = item.video_url;
+      if (item.thumbnail_url) video.poster = item.thumbnail_url;
       media.append(video);
     } else {
       media.classList.add('clip-error');
@@ -106,6 +117,18 @@ function renderClips(shorts) {
     const timing = document.createElement('p');
     timing.textContent = `${Number(item.start_time || 0).toFixed(1)}–${Number(item.end_time || 0).toFixed(1)} сек · оценка ${item.score ?? '—'}`;
     info.append(number, title, timing);
+    if (item.description) {
+      const description = document.createElement('p');
+      description.className = 'clip-description';
+      description.textContent = item.description;
+      info.append(description);
+    }
+    if (item.scheduled_at) {
+      const schedule = document.createElement('p');
+      schedule.className = 'clip-schedule';
+      schedule.textContent = `Публикация: ${new Date(item.scheduled_at).toLocaleString('ru-RU')}`;
+      info.append(schedule);
+    }
     if (item.error) {
       const error = document.createElement('p');
       error.className = 'clip-failure';
@@ -137,14 +160,24 @@ async function pollJob(id) {
     if (!response.ok) throw new Error('Задача не найдена. Возможно, сервер был перезапущен.');
     const job = await response.json();
     if (job.status === 'completed') {
-      localStorage.removeItem('shortform-active-job');
-      showStatus('ГОТОВО', `Создано клипов: ${job.shorts.length}. Проверь видео перед публикацией.`);
-      renderClips(job.shorts);
+      const pending = job.publish_state === 'pending';
+      showStatus(pending ? 'ОЧЕРЕДЬ АКТИВНА' : 'ГОТОВО', pending
+        ? `Создано клипов: ${job.shorts.length}. Публикация идёт по расписанию; держи программу запущенной.`
+        : `Создано клипов: ${job.shorts.length}. Проверь результат на выбранных площадках.`);
+      const signature = JSON.stringify(job.shorts);
+      if (signature !== lastClipsSignature) {
+        renderClips(job.shorts);
+        lastClipsSignature = signature;
+      }
+      if (pending) setTimeout(() => pollJob(id), 15000);
+      else localStorage.removeItem('shortform-active-job');
+      localStorage.setItem('shortform-last-job', id);
       startButton.disabled = false;
       return;
     }
     if (job.status === 'failed') {
       localStorage.removeItem('shortform-active-job');
+      localStorage.setItem('shortform-last-job', id);
       showStatus('ОШИБКА', job.error || 'Не удалось обработать видео');
       startButton.disabled = false;
       return;
@@ -177,7 +210,6 @@ form.addEventListener('submit', async (event) => {
 });
 
 const existingJob = localStorage.getItem('shortform-active-job');
-if (existingJob) {
-  startButton.disabled = true;
-  pollJob(existingJob);
-}
+const lastJob = localStorage.getItem('shortform-last-job');
+if (existingJob) startButton.disabled = true;
+if (existingJob || lastJob) pollJob(existingJob || lastJob);

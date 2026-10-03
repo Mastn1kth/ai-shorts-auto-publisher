@@ -67,6 +67,7 @@
             <label class="privacy-select"><span>ВИДИМОСТЬ</span><select id="privacy" name="privacy"><option value="private">Приватно</option><option value="unlisted">По ссылке</option><option value="public">Публично</option></select></label>
             <label class="dry-run"><input type="checkbox" name="dry_run"><span>Тест без загрузки</span></label>
           </div>
+          <div class="schedule-bar"><div><span class="field-label">РАСПИСАНИЕ ПУБЛИКАЦИЙ</span><p>Первый ролик — сразу после готовности, следующие — с заданным интервалом.</p></div><label class="field"><span class="field-label">ИНТЕРВАЛ, МИНУТЫ</span><input name="interval_minutes" type="number" min="1" max="10080" value="60"></label><label class="field"><span class="field-label">ПЕРВЫЙ ВЫХОД <small>необязательно, время компьютера</small></span><input name="start_at" type="datetime-local"></label></div>
           <div class="action-row"><p>Создание клипов может занять несколько минут. Публикация начнётся только на отмеченных площадках.</p><button id="start-button" class="start-button" type="submit"><span>СОЗДАТЬ КЛИПЫ</span><span class="button-arrow">↗</span></button></div>
         </form>
       </section>
