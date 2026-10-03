@@ -43,6 +43,8 @@ function updateConnections(status) {
     ? `Бот сохранён · ${status.telegram_chat_id}` : 'Не подключён';
   document.querySelector('#telegram-setup-button').textContent = status.telegram_token_saved && status.telegram_chat_id
     ? 'ИЗМЕНИТЬ НАСТРОЙКИ ↗' : 'ПОДКЛЮЧИТЬ TELEGRAM ↗';
+  document.querySelector('#tiktok-status').textContent = status.tiktok_token_saved ? 'Токен сохранён' : 'Не подключён';
+  document.querySelector('#tiktok-setup-button').textContent = status.tiktok_token_saved ? 'ИЗМЕНИТЬ НАСТРОЙКИ ↗' : 'ПОДКЛЮЧИТЬ TIKTOK ↗';
   if (status.youtube_auth.status === 'failed') connectionFeedback(status.youtube_auth.error || 'Ошибка входа Google', true);
 }
 
@@ -71,7 +73,7 @@ document.querySelectorAll('.connection-token-form').forEach((settingsForm) => se
     connectionFeedback(error.message, true);
   }
 }));
-['vk', 'telegram'].forEach((platform) => {
+['vk', 'telegram', 'tiktok'].forEach((platform) => {
   document.querySelector(`#${platform}-setup-button`).addEventListener('click', () => {
     const setup = document.querySelector(`#${platform}-setup`);
     setup.open = true;
@@ -235,6 +237,26 @@ function renderClips(shorts) {
   });
 }
 
+function renderApproval(job) {
+  const existing = document.querySelector('#approve-publishing');
+  if (existing) existing.remove();
+  if (job.publish_state !== 'awaiting_approval') return;
+  const button = document.createElement('button');
+  button.id = 'approve-publishing';
+  button.className = 'approve-button';
+  button.textContent = 'РАЗРЕШИТЬ ПУБЛИКАЦИЮ ↗';
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    const data = new FormData();
+    data.append('csrf_token', form.querySelector('[name="csrf_token"]').value);
+    const response = await fetch(`/api/jobs/${job.id}/approve`, { method: 'POST', body: data });
+    const payload = await response.json();
+    if (!response.ok) { button.disabled = false; return showStatus('ОШИБКА', payload.error || 'Не удалось начать публикацию'); }
+    pollJob(job.id);
+  });
+  statusMessage.after(button);
+}
+
 async function pollJob(id) {
   try {
     const response = await fetch(`/api/jobs/${id}`);
@@ -242,14 +264,17 @@ async function pollJob(id) {
     const job = await response.json();
     if (job.status === 'completed') {
       const pending = job.publish_state === 'pending';
-      showStatus(pending ? 'ОЧЕРЕДЬ АКТИВНА' : 'ГОТОВО', pending
+      const approval = job.publish_state === 'awaiting_approval';
+      showStatus(pending ? 'ОЧЕРЕДЬ АКТИВНА' : approval ? 'НУЖНО ПОДТВЕРЖДЕНИЕ' : 'ГОТОВО', pending
         ? `Создано клипов: ${job.shorts.length}. Публикация идёт по расписанию; держи программу запущенной.`
+        : approval ? `Создано клипов: ${job.shorts.length}. Проверь ролики и нажми подтверждение, когда всё устроит.`
         : `Создано клипов: ${job.shorts.length}. Проверь результат на выбранных площадках.`);
       const signature = JSON.stringify(job.shorts);
       if (signature !== lastClipsSignature) {
         renderClips(job.shorts);
         lastClipsSignature = signature;
       }
+      renderApproval(job);
       if (pending) setTimeout(() => pollJob(id), 15000);
       else localStorage.removeItem('shortform-active-job');
       localStorage.setItem('shortform-last-job', id);

@@ -17,6 +17,7 @@ from flask import Flask, abort, jsonify, render_template, request, send_file
 
 from shorts_generator import generate_shorts
 from shorts_generator.local.llm import make_llm
+from shorts_generator.local.postprocess import VIDEO_STYLES, enhance_clip
 from shorts_generator.local.downloader import _extract_youtube_video_id
 from shorts_generator.publishers.service import validate_publish_request
 from shorts_generator.publishers.service import publish_shorts
@@ -144,6 +145,15 @@ def _settings(form):
             _schedule_times(1, interval_minutes, start_at)
         except (ValueError, OverflowError) as exc:
             raise ValueError("Некорректное время первой публикации") from exc
+    video_style = form.get("video_style", "clean").strip().lower()
+    if video_style not in VIDEO_STYLES:
+        raise ValueError("Неизвестный стиль видео")
+    try:
+        music_volume = float(form.get("music_volume", "0.08"))
+    except ValueError as exc:
+        raise ValueError("Громкость музыки должна быть числом") from exc
+    if not 0 <= music_volume <= 1:
+        raise ValueError("Громкость музыки должна быть от 0 до 1")
     return {
         "provider": provider,
         "model": model,
@@ -155,6 +165,12 @@ def _settings(form):
         "dry_run": form.get("dry_run") == "on",
         "interval_minutes": interval_minutes,
         "start_at": start_at,
+        "video_style": video_style,
+        "subtitles": form.get("subtitles") == "on",
+        "remove_silence": form.get("remove_silence") == "on",
+        "smooth_edges": form.get("smooth_edges") == "on",
+        "music_volume": music_volume,
+        "approval_required": form.get("approval_required") == "on",
     }
 
 
@@ -184,8 +200,22 @@ def _run_job(job_id: str, settings: dict) -> None:
             llm_fn=llm,
             output_dir=str(JOBS_DIR / job_id),
         )
+        transcript = result.get("transcript", {})
         for index, short in enumerate(result["shorts"]):
             if short.get("clip_url"):
+                source_clip = Path(short["clip_url"])
+                enhanced = source_clip.with_name(f"short_{index + 1:02d}_final.mp4")
+                finish = enhance_clip(
+                    source_clip, enhanced, transcript, short.get("start_time", 0), short.get("end_time", 0),
+                    style=settings.get("video_style", "clean"), subtitles=settings.get("subtitles", False),
+                    remove_silence=settings.get("remove_silence", False), smooth_edges=settings.get("smooth_edges", False),
+                    music=Path(settings["music_path"]) if settings.get("music_path") else None,
+                    music_volume=settings.get("music_volume", 0.08),
+                )
+                if finish.get("enhanced"):
+                    source_clip.unlink(missing_ok=True)
+                    short["clip_url"] = str(enhanced)
+                    short["finish"] = finish
                 thumbnail_path = JOBS_DIR / job_id / f"thumbnail_{index:02d}.jpg"
                 if _thumbnail(short["clip_url"], thumbnail_path):
                     short["thumbnail_path"] = str(thumbnail_path)
@@ -213,10 +243,10 @@ def _run_job(job_id: str, settings: dict) -> None:
         job["platforms"] = settings["platforms"]
         job["privacy"] = settings["privacy"]
         job["dry_run"] = settings["dry_run"]
-        job["publish_state"] = "pending" if settings["platforms"] else "none"
+        job["publish_state"] = "awaiting_approval" if settings["platforms"] and settings.get("approval_required", False) else ("pending" if settings["platforms"] else "none")
         job["status"] = "completed"
         _save_job(job)
-        if settings["platforms"]:
+        if settings["platforms"] and not settings.get("approval_required", False):
             Thread(target=_publish_job, args=(job_id,), daemon=True).start()
     except Exception as exc:
         job["error"] = _safe_error(exc, settings["api_key"])
@@ -288,6 +318,7 @@ def _connection_status() -> dict:
         "vk_token_saved": bool(get_secret("VK_ACCESS_TOKEN")),
         "telegram_token_saved": bool(get_secret("TELEGRAM_BOT_TOKEN")),
         "telegram_chat_id": get_secret("TELEGRAM_CHAT_ID"),
+        "tiktok_token_saved": bool(get_secret("TIKTOK_ACCESS_TOKEN")),
     }
 
 
@@ -309,7 +340,7 @@ def get_connections():
 def save_connections():
     if request.form.get("csrf_token") != CSRF_TOKEN:
         return jsonify(error="Недействительный запрос. Обновите страницу."), 403
-    allowed = {"VK_ACCESS_TOKEN", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"} | {
+    allowed = {"VK_ACCESS_TOKEN", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "TIKTOK_ACCESS_TOKEN"} | {
         key_name for _, key_name, _, _ in AI_SERVICES
     }
     for name in allowed:
@@ -379,6 +410,7 @@ def create_job():
     if request.form.get("csrf_token") != CSRF_TOKEN:
         return jsonify(error="Недействительный запрос. Обновите страницу."), 403
     upload = request.files.get("video")
+    music_upload = request.files.get("music")
     has_upload = bool(upload and upload.filename)
     raw_url = request.form.get("source_url", "").strip()
     if has_upload == bool(raw_url):
@@ -413,7 +445,20 @@ def create_job():
             _jobs[job_id]["source"] = str(folder / "source.mp4")
         else:
             _jobs[job_id]["source"] = raw_url
+        if music_upload and music_upload.filename:
+            if not music_upload.filename.lower().endswith((".mp3", ".wav", ".m4a", ".aac", ".ogg")):
+                raise ValueError("Музыка должна быть MP3, WAV, M4A, AAC или OGG")
+            music_path = folder / ("background-music" + Path(music_upload.filename).suffix.lower())
+            music_upload.save(music_path)
+            settings["music_path"] = str(music_path)
+        else:
+            settings["music_path"] = None
         _save_job(_jobs[job_id])
+    except ValueError as exc:
+        with _lock:
+            _active_job = None
+            _jobs.pop(job_id, None)
+        return jsonify(error=str(exc)), 400
     except Exception:
         with _lock:
             _active_job = None
@@ -421,6 +466,21 @@ def create_job():
         return jsonify(error="Не удалось сохранить MP4. Проверьте место на диске."), 500
     Thread(target=_run_job, args=(job_id, settings), daemon=True).start()
     return jsonify(id=job_id, status="queued"), 202
+
+
+@app.post("/api/jobs/<job_id>/approve")
+def approve_job(job_id):
+    if request.form.get("csrf_token") != CSRF_TOKEN:
+        return jsonify(error="Недействительный запрос. Обновите страницу."), 403
+    job = _jobs.get(job_id)
+    if not job or job.get("status") != "completed":
+        return jsonify(error="Задача ещё не готова к публикации"), 409
+    if job.get("publish_state") != "awaiting_approval":
+        return jsonify(error="Для этой задачи подтверждение уже не требуется"), 409
+    job["publish_state"] = "pending"
+    _save_job(job)
+    Thread(target=_publish_job, args=(job_id,), daemon=True).start()
+    return jsonify(status="pending")
 
 
 @app.get("/api/jobs/<job_id>")
