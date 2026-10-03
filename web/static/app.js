@@ -33,12 +33,16 @@ function updateConnections(status) {
   const savedAI = Object.entries(status.ai_saved || {}).filter(([, saved]) => saved).map(([name]) => name);
   document.querySelector('#ai-status').textContent = savedAI.length ? `Сохранено: ${savedAI.join(', ')}` : 'Добавь хотя бы один ключ';
   document.querySelector('#youtube-status').textContent = status.youtube_auth.status === 'connected'
-    ? 'Google подключён'
+    ? 'Вход Google подтверждён'
     : status.youtube_auth.status === 'pending' ? 'Ожидаем вход через Google…'
       : status.youtube_token_ready ? 'Токен есть · права не проверены' : status.youtube_client_ready ? 'OAuth JSON добавлен' : 'Не подключён';
+  document.querySelector('#youtube-connect-button').textContent = status.youtube_token_ready ? 'ПРОВЕРИТЬ ВХОД ↗' : 'АВТОРИЗОВАТЬСЯ ↗';
   document.querySelector('#vk-status').textContent = status.vk_token_saved ? 'Токен сохранён · права не проверены' : 'Не подключён';
+  document.querySelector('#vk-setup-button').textContent = status.vk_token_saved ? 'ИЗМЕНИТЬ НАСТРОЙКИ ↗' : 'ПОДКЛЮЧИТЬ VK ↗';
   document.querySelector('#telegram-status').textContent = status.telegram_token_saved && status.telegram_chat_id
     ? `Бот сохранён · ${status.telegram_chat_id}` : 'Не подключён';
+  document.querySelector('#telegram-setup-button').textContent = status.telegram_token_saved && status.telegram_chat_id
+    ? 'ИЗМЕНИТЬ НАСТРОЙКИ ↗' : 'ПОДКЛЮЧИТЬ TELEGRAM ↗';
   if (status.youtube_auth.status === 'failed') connectionFeedback(status.youtube_auth.error || 'Ошибка входа Google', true);
 }
 
@@ -59,18 +63,35 @@ document.querySelectorAll('.connection-token-form').forEach((settingsForm) => se
   try {
     const status = await connectionRequest('/api/connections/tokens', new FormData(settingsForm));
     settingsForm.querySelectorAll('input[type="password"]').forEach((input) => { input.value = ''; });
+    const setup = settingsForm.closest('.connection-setup');
+    if (setup) setup.open = false;
     updateConnections(status);
     connectionFeedback('Сохранено в хранилище Windows.');
   } catch (error) {
     connectionFeedback(error.message, true);
   }
 }));
+['vk', 'telegram'].forEach((platform) => {
+  document.querySelector(`#${platform}-setup-button`).addEventListener('click', () => {
+    const setup = document.querySelector(`#${platform}-setup`);
+    setup.open = true;
+    setup.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    setup.querySelector('input[type="password"]').focus();
+  });
+});
+
+async function startYoutubeAuth() {
+  await connectionRequest('/api/connections/youtube/authorize', new FormData(document.querySelector('#youtube-auth-form')));
+  connectionFeedback('Откроется окно Google. Подтверди доступ к каналу.');
+  refreshConnections();
+}
 document.querySelector('#youtube-client-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
     const status = await connectionRequest('/api/connections/youtube/client', new FormData(event.currentTarget));
     updateConnections(status);
-    connectionFeedback('OAuth JSON добавлен. Теперь нажми «Авторизоваться через Google».');
+    connectionFeedback('Файл добавлен. Открываем вход Google…');
+    await startYoutubeAuth();
   } catch (error) {
     connectionFeedback(error.message, true);
   }
@@ -78,9 +99,15 @@ document.querySelector('#youtube-client-form').addEventListener('submit', async 
 document.querySelector('#youtube-auth-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
-    await connectionRequest('/api/connections/youtube/authorize', new FormData(event.currentTarget));
-    connectionFeedback('Откроется окно Google. Подтверди доступ к своему каналу.');
-    refreshConnections();
+    const status = await (await fetch('/api/connections')).json();
+    if (!status.youtube_client_ready) {
+      const setup = document.querySelector('#youtube-setup');
+      setup.open = true;
+      setup.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      connectionFeedback('Для первого входа добавь OAuth-файл. После этого откроется Google.');
+      return;
+    }
+    await startYoutubeAuth();
   } catch (error) {
     connectionFeedback(error.message, true);
   }

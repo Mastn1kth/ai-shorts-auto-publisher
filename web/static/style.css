@@ -43,3 +43,14 @@
 .ai-note{margin-bottom:0!important}
 @media(max-width:900px){.ai-key-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.publish-bar{grid-template-columns:1fr 1fr}.publish-title,.publish-options{grid-column:1/-1}}
 @media(max-width:540px){.site-shell{padding:0 16px}.intro{padding:30px 0 22px}.intro h1{font-size:43px}.editor-main{padding:20px}.workspace-head{padding:20px}.drop-zone{height:190px}.publish-bar{padding:20px}.schedule-settings summary{padding:18px 20px}.schedule-bar{grid-template-columns:1fr;padding:0 20px 22px}.ai-key-grid{grid-template-columns:1fr}.action-row{padding:20px}}
+
+.connection-card .connection-action{margin-top:24px}
+.connection-card .connection-action button,.connection-card .connection-primary{display:block;width:100%;margin-top:24px;background:var(--acid);border-color:var(--acid);color:#141b0b;font-weight:900;text-align:center}
+.connection-card .connection-action button{margin-top:0}
+.connection-card .connection-action button:hover,.connection-card .connection-primary:hover{background:#e8ff91}
+.connection-setup{margin-top:16px;border-top:1px solid var(--line)}
+.connections .connection-setup summary{display:block;padding:13px 0 0;color:#a8b8a8;font:700 11px Bahnschrift,sans-serif;letter-spacing:.4px;border:0;cursor:pointer}
+.connections .connection-setup summary:hover{color:var(--acid)}
+.connection-setup[open] summary{color:var(--acid)}
+.connection-setup p{margin:12px 0!important}
+.connection-setup form{margin-top:12px}
