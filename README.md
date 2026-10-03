@@ -1,6 +1,6 @@
 # AI Shorts Auto Publisher
 
-> Из длинного видео — в готовые Shorts, Reels и VK Клипы.
+> Из длинного видео — в готовые YouTube Shorts и VK Видео.
 
 CLI-инструмент, который сам находит сильные фрагменты в видео, превращает их в вертикальные ролики и отправляет результат на нужные площадки.
 
@@ -15,7 +15,7 @@ CLI-инструмент, который сам находит сильные ф
 - убирает сильно пересекающиеся варианты;
 - обрезает исходник под вертикальный формат;
 - сохраняет клипы локально или получает их через MuAPI;
-- публикует ролики в YouTube Shorts, VK Видео и Instagram Reels;
+- публикует ролики в YouTube Shorts и VK Видео;
 - ведёт журнал публикаций, чтобы не загружать один и тот же клип повторно после сбоя;
 - возвращает подробный JSON-результат по каждому ролику и каждой площадке.
 
@@ -32,7 +32,6 @@ cd ai-shorts-auto-publisher
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements-local.txt
-pip install -r requirements-publish.txt
 Copy-Item .env.example .env
 ```
 
@@ -42,7 +41,6 @@ Copy-Item .env.example .env
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-local.txt
-pip install -r requirements-publish.txt
 cp .env.example .env
 ```
 
@@ -69,7 +67,7 @@ python main.py "D:\Videos\interview.mp4" --mode local --num-clips 3 --output-jso
 Сначала удобно проверить весь сценарий в безопасном режиме:
 
 ```powershell
-python main.py "D:\Videos\interview.mp4" --mode local --publish youtube vk instagram --publish-dry-run --output-json dry-run.json
+python main.py "D:\Videos\interview.mp4" --mode local --publish youtube vk --publish-dry-run --output-json dry-run.json
 ```
 
 Приватная загрузка на YouTube и VK:
@@ -78,13 +76,13 @@ python main.py "D:\Videos\interview.mp4" --mode local --publish youtube vk insta
 python main.py "D:\Videos\interview.mp4" --mode local --publish youtube vk --publish-privacy private --output-json result.json
 ```
 
-Публичная публикация на всех трёх площадках:
+Публичная публикация на обеих площадках:
 
 ```powershell
-python main.py "D:\Videos\interview.mp4" --mode local --publish youtube vk instagram --publish-privacy public --output-json result.json
+python main.py "D:\Videos\interview.mp4" --mode local --publish youtube vk --publish-privacy public --output-json result.json
 ```
 
-По умолчанию используется `private`. Для Instagram нужен режим `public`, профессиональный аккаунт и публичный HTTPS URL, по которому Instagram сможет забрать MP4. Локальные файлы для Instagram можно отдавать через S3-совместимое хранилище.
+По умолчанию используется `private`. Режим `unlisted` доступен только при публикации на YouTube.
 
 ## Подключение площадок
 
@@ -100,18 +98,6 @@ python main.py "D:\Videos\interview.mp4" --mode local --publish youtube vk insta
 ### VK Видео
 
 Укажите `VK_ACCESS_TOKEN`. Для публикации в сообщество добавьте `VK_GROUP_ID`; переменная `VK_PUBLISH_TO_WALL=true` также отправит публичное видео на стену сообщества.
-
-### Instagram Reels
-
-Нужны профессиональный аккаунт Instagram (Business или Creator), токен с правом публикации и `INSTAGRAM_USER_ID`.
-
-Для локальных MP4 настройте S3-совместимое хранилище:
-
-```dotenv
-MEDIA_S3_BUCKET=my-bucket
-MEDIA_S3_ENDPOINT=https://s3.example.com
-MEDIA_PUBLIC_BASE_URL=https://cdn.example.com
-```
 
 ## Два режима генерации
 
@@ -133,7 +119,7 @@ python main.py "D:\Videos\interview.mp4" --mode local --publish youtube --force-
 
 ## Результат
 
-В `result.json` у каждого клипа есть блок `publishing` со статусом по каждой площадке. Возможные статусы: `dry_run`, `uploaded`, `published`, `already_uploaded`, `already_published` и `failed`.
+В `result.json` у каждого клипа есть блок `publishing` со статусом по каждой площадке. Возможные статусы: `dry_run`, `uploaded`, `already_uploaded` и `failed`.
 
 `uploaded` означает, что API принял файл. Финальную обработку и появление ролика в профиле площадки иногда нужно проверить отдельно.
 
