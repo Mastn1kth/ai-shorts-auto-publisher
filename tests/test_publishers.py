@@ -3,27 +3,24 @@
 import os
 import sys
 import tempfile
-import types
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 from unittest.mock import Mock, patch
 
 from shorts_generator.publishers.base import PublisherError
-from shorts_generator.publishers.instagram import InstagramPublisher
 from shorts_generator.publishers.ledger import PublishingLedger
 from shorts_generator.publishers.service import publish_shorts, validate_publish_request
-from shorts_generator.publishers.storage import public_video_url
 from shorts_generator.publishers.vk import VKPublisher
 from shorts_generator.pipeline import generate_shorts
 import main as cli
 
 
 class PublishRequestTests(unittest.TestCase):
-    def test_unsafe_instagram_visibility_is_rejected_before_video_processing(self):
+    def test_unsupported_platform_is_rejected_before_video_processing(self):
         with patch("shorts_generator.pipeline._run_local") as processing:
-            with self.assertRaisesRegex(ValueError, "Instagram Reels require"):
-                generate_shorts("input.mp4", mode="local", publish_platforms=["instagram"])
+            with self.assertRaisesRegex(ValueError, "Unsupported publishing platforms"):
+                generate_shorts("input.mp4", mode="local", publish_platforms=["other"])
             processing.assert_not_called()
 
     def test_unlisted_vk_is_rejected(self):
@@ -39,54 +36,14 @@ class PublishRequestTests(unittest.TestCase):
     def test_remote_dry_run_does_not_download(self, get):
         result = publish_shorts(
             [{"clip_url": "https://example.com/short.mp4", "title": "Test"}],
-            ["youtube", "vk", "instagram"],
+            ["youtube", "vk"],
             dry_run=True,
         )
         get.assert_not_called()
         self.assertEqual(
             [item["status"] for item in result[0]["publishing"].values()],
-            ["dry_run", "dry_run", "dry_run"],
+            ["dry_run", "dry_run"],
         )
-
-
-class InstagramTests(unittest.TestCase):
-    @patch("shorts_generator.publishers.instagram.requests.get")
-    @patch("shorts_generator.publishers.instagram.requests.post")
-    def test_hosted_video_container_and_publish(self, post, get):
-        post.side_effect = [
-            Mock(**{"json.return_value": {"id": "container-1"}}),
-            Mock(**{"json.return_value": {"id": "media-2"}}),
-        ]
-        get.return_value.json.return_value = {"status_code": "FINISHED"}
-        publisher = InstagramPublisher(access_token="test-token", user_id="123")
-        result = publisher.publish(
-            "https://example.com/short.mp4", {"caption": "Example"}, privacy_status="public"
-        )
-        self.assertEqual(result["external_id"], "media-2")
-        self.assertEqual(post.call_count, 2)
-        self.assertEqual(get.call_count, 1)
-        self.assertEqual(post.call_args_list[0].kwargs["data"]["video_url"], "https://example.com/short.mp4")
-        self.assertEqual(post.call_args_list[0].kwargs["headers"]["Authorization"], "Bearer test-token")
-        self.assertNotIn("test-token", str(post.call_args_list[0].args))
-
-    def test_local_clip_is_uploaded_to_storage(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = os.path.join(directory, "short.mp4")
-            with open(path, "wb") as video:
-                video.write(b"fake-mp4")
-            client = Mock()
-            fake_boto3 = types.SimpleNamespace(client=Mock(return_value=client))
-            config = {"MEDIA_S3_BUCKET": "clips", "MEDIA_PUBLIC_BASE_URL": "https://cdn.example.com"}
-            with patch.dict(os.environ, config), patch.dict(sys.modules, {"boto3": fake_boto3}):
-                url = public_video_url(path)
-            self.assertTrue(url.startswith("https://cdn.example.com/shorts/"))
-            self.assertTrue(url.endswith(".mp4"))
-            self.assertEqual(client.upload_file.call_args.args[0:2], (path, "clips"))
-
-    def test_private_reel_is_rejected(self):
-        publisher = InstagramPublisher(access_token="test-token", user_id="123")
-        with self.assertRaises(PublisherError):
-            publisher.publish("https://example.com/short.mp4", {}, privacy_status="private")
 
 
 class VKTests(unittest.TestCase):
@@ -162,19 +119,22 @@ class LedgerTests(unittest.TestCase):
             self.assertEqual(status["status"], "uploaded")
             self.assertIn("disk full", status["tracking_error"])
 
-    def test_new_hosted_url_for_same_source_and_segment_is_skipped(self):
+    @patch("shorts_generator.publishers.service.requests.get")
+    def test_new_hosted_url_for_same_source_and_segment_is_skipped(self, get):
         with tempfile.TemporaryDirectory() as directory:
             publisher = Mock()
-            publisher.publish.return_value = {"platform": "instagram", "status": "published", "external_id": "ig-1"}
+            publisher.publish.return_value = {"platform": "youtube", "status": "uploaded", "external_id": "yt-1"}
+            get.return_value.iter_content.return_value = [b"fake-mp4"]
             first_clip = {"clip_url": "https://cdn.example.com/first.mp4", "start_time": 10.0, "end_time": 30.0}
             second_clip = {**first_clip, "clip_url": "https://cdn.example.com/second.mp4"}
-            with patch.dict(os.environ, {"PUBLISH_LEDGER_FILE": os.path.join(directory, "ledger.json"), "INSTAGRAM_USER_ID": "42"}):
+            with patch.dict(os.environ, {"PUBLISH_LEDGER_FILE": os.path.join(directory, "ledger.json")}):
                 with patch("shorts_generator.publishers.service._publisher", return_value=publisher):
-                    first = publish_shorts([first_clip], ["instagram"], privacy_status="public", source_id="https://youtube.com/watch?v=1")
-                    second = publish_shorts([second_clip], ["instagram"], privacy_status="public", source_id="https://youtube.com/watch?v=1")
-            self.assertEqual(first[0]["publishing"]["instagram"]["status"], "published")
-            self.assertEqual(second[0]["publishing"]["instagram"]["status"], "already_published")
+                    first = publish_shorts([first_clip], ["youtube"], source_id="https://youtube.com/watch?v=1")
+                    second = publish_shorts([second_clip], ["youtube"], source_id="https://youtube.com/watch?v=1")
+            self.assertEqual(first[0]["publishing"]["youtube"]["status"], "uploaded")
+            self.assertEqual(second[0]["publishing"]["youtube"]["status"], "already_uploaded")
             publisher.publish.assert_called_once()
+            get.assert_called_once()
 
     def test_youtube_key_is_stable_when_oauth_file_appears(self):
         with tempfile.TemporaryDirectory() as directory:
