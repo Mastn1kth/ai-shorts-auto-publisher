@@ -19,7 +19,7 @@ from shorts_generator import generate_shorts
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="AI YouTube Shorts Generator")
+    parser = argparse.ArgumentParser(description="AI Shorts Auto Publisher")
     parser.add_argument("url", help="YouTube URL, file:// URL, or local file path")
     parser.add_argument(
         "--mode",
@@ -44,6 +44,10 @@ def main() -> int:
         "--publish-dry-run", action="store_true",
         help="Validate publishing selection without contacting platform APIs",
     )
+    parser.add_argument(
+        "--force-republish", action="store_true",
+        help="Upload again even when the platform already accepted this clip",
+    )
     args = parser.parse_args()
 
     try:
@@ -57,6 +61,7 @@ def main() -> int:
             publish_platforms=args.publish,
             publish_privacy=args.publish_privacy,
             publish_dry_run=args.publish_dry_run,
+            force_republish=args.force_republish,
         )
     except Exception as e:
         print(f"\nFAILED: {e}", file=sys.stderr)
@@ -77,13 +82,15 @@ def main() -> int:
             print(f"     clip:   FAILED ({s.get('error')})")
         for platform, status in (s.get("publishing") or {}).items():
             print(f"     {platform}: {status.get('status')} {status.get('url', status.get('error', ''))}")
+            if status.get("tracking_error"):
+                print(f"     {platform} tracking: {status['tracking_error']}")
 
     if args.output_json:
         with open(args.output_json, "w") as f:
             json.dump(result, f, indent=2)
         print(f"\nFull JSON written to {args.output_json}")
 
-    if any(status.get("status") == "failed" for short in result["shorts"]
+    if any(status.get("status") == "failed" or status.get("tracking_error") for short in result["shorts"]
            for status in (short.get("publishing") or {}).values()):
         return 2
     return 0

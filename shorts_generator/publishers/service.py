@@ -2,12 +2,13 @@
 
 import os
 import tempfile
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional
 
 import requests
 
 from .base import build_metadata
 from .instagram import InstagramPublisher
+from .ledger import PublishingLedger
 from .vk import VKPublisher
 from .youtube import YouTubePublisher
 
@@ -33,9 +34,13 @@ def _publisher(platform: str):
     return {"youtube": YouTubePublisher, "vk": VKPublisher, "instagram": InstagramPublisher}[platform]()
 
 
-def publish_shorts(shorts: List[Dict], platforms: Iterable[str], privacy_status: str = "private", dry_run: bool = False) -> List[Dict]:
+def publish_shorts(
+    shorts: List[Dict], platforms: Iterable[str], privacy_status: str = "private",
+    dry_run: bool = False, source_id: Optional[str] = None, force_republish: bool = False,
+) -> List[Dict]:
     """Publish each successfully rendered short to requested platforms."""
     platforms = validate_publish_request(platforms, privacy_status, dry_run)
+    ledger = None if dry_run else PublishingLedger()
     results = []
     for short in shorts:
         video_path = short.get("clip_url")
@@ -51,6 +56,12 @@ def publish_shorts(shorts: List[Dict], platforms: Iterable[str], privacy_status:
         for platform in platforms:
             temporary_path = None
             try:
+                key = None if dry_run else ledger.key(platform, video_path, short, source_id)
+                previous = None if dry_run or force_republish else ledger.find(key)
+                if previous:
+                    skipped_status = "already_published" if previous["status"] == "published" else "already_uploaded"
+                    item["publishing"][platform] = {**previous, "status": skipped_status, "previous_status": previous["status"]}
+                    continue
                 publish_path = video_path
                 # API mode returns hosted clip URLs; upload-based publishers need a local file.
                 if not dry_run and platform in {"youtube", "vk"} and str(video_path).startswith(("http://", "https://")):
@@ -72,12 +83,20 @@ def publish_shorts(shorts: List[Dict], platforms: Iterable[str], privacy_status:
                         publish_path = temporary_path
                     finally:
                         download.close()
-                item["publishing"][platform] = _publisher(platform).publish(
+                outcome = _publisher(platform).publish(
                     publish_path,
                     build_metadata(short, platform),
                     privacy_status=privacy_status,
                     dry_run=dry_run,
                 )
+                item["publishing"][platform] = outcome
+                if ledger and outcome.get("status") in {"uploaded", "published"}:
+                    try:
+                        ledger.record(key, outcome)
+                    except Exception as exc:
+                        item["publishing"][platform]["tracking_error"] = (
+                            f"Upload succeeded, but publishing ledger could not be saved: {exc}"
+                        )
             except Exception as exc:
                 item["publishing"][platform] = {"platform": platform, "status": "failed", "error": str(exc)}
             finally:

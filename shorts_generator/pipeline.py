@@ -97,6 +97,7 @@ def generate_shorts(
     publish_platforms: Optional[List[str]] = None,
     publish_privacy: str = "private",
     publish_dry_run: bool = False,
+    force_republish: bool = False,
 ) -> Dict:
     """Run the full pipeline and return a structured result.
 
@@ -134,6 +135,8 @@ def generate_shorts(
             result["shorts"], publish_platforms,
             privacy_status=publish_privacy,
             dry_run=publish_dry_run,
+            source_id=youtube_url,
+            force_republish=force_republish,
         )
         result["publishing"] = {
             "platforms": publish_platforms,
