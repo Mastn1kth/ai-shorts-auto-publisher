@@ -56,6 +56,23 @@ class PublishRequestTests(unittest.TestCase):
 
 class VKTests(unittest.TestCase):
     @patch("shorts_generator.publishers.vk.requests.post")
+    def test_profile_upload_never_sends_group_or_wallpost(self, post):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "short.mp4")
+            with open(path, "wb") as video:
+                video.write(b"fake-mp4")
+            post.side_effect = [
+                Mock(**{"json.return_value": {"response": {"upload_url": "https://upload.example.com", "owner_id": 1, "video_id": 2}}}),
+                Mock(content=b"{}", **{"json.return_value": {}}),
+            ]
+            VKPublisher(access_token="test-token", group_id="999").publish(
+                path, {"title": "Test"}, privacy_status="public"
+            )
+            params = post.call_args_list[0].kwargs["data"]
+            self.assertNotIn("group_id", params)
+            self.assertEqual(params["wallpost"], 0)
+
+    @patch("shorts_generator.publishers.vk.requests.post")
     def test_upload_error_is_failure(self, post):
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "short.mp4")

@@ -128,7 +128,7 @@ python main.py "D:\Videos\interview.mp4" --mode local --publish youtube vk teleg
 
 ### VK Видео
 
-Укажите `VK_ACCESS_TOKEN`. Для публикации в сообщество добавьте `VK_GROUP_ID`; переменная `VK_PUBLISH_TO_WALL=true` также отправит публичное видео на стену сообщества.
+Укажите `VK_ACCESS_TOKEN`. Windows-приложение публикует ролики в личный профиль VK Видео: `group_id` и публикация на стене сообщества принудительно отключены.
 
 ### Telegram
 

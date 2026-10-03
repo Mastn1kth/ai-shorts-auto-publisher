@@ -16,9 +16,6 @@ def _account_marker(platform: str) -> str:
             return "account:" + account_id
         return "token-file:" + os.path.abspath(os.getenv("YOUTUBE_TOKEN_FILE", "youtube-token.json"))
     if platform == "vk":
-        group = get_secret("VK_GROUP_ID")
-        if group:
-            return f"group:{group}"
         token = get_secret("VK_ACCESS_TOKEN")
         return "user-token:" + hashlib.sha256(token.encode("utf-8")).hexdigest()
     if platform == "telegram":

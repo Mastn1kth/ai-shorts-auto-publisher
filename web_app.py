@@ -286,7 +286,6 @@ def _connection_status() -> dict:
         "youtube_token_ready": Path(os.getenv("YOUTUBE_TOKEN_FILE", "youtube-token.json")).is_file(),
         "youtube_auth": dict(_oauth_state),
         "vk_token_saved": bool(get_secret("VK_ACCESS_TOKEN")),
-        "vk_group_id": get_secret("VK_GROUP_ID"),
         "telegram_token_saved": bool(get_secret("TELEGRAM_BOT_TOKEN")),
         "telegram_chat_id": get_secret("TELEGRAM_CHAT_ID"),
     }
@@ -310,7 +309,7 @@ def get_connections():
 def save_connections():
     if request.form.get("csrf_token") != CSRF_TOKEN:
         return jsonify(error="Недействительный запрос. Обновите страницу."), 403
-    allowed = {"VK_ACCESS_TOKEN", "VK_GROUP_ID", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"} | {
+    allowed = {"VK_ACCESS_TOKEN", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"} | {
         key_name for _, key_name, _, _ in AI_SERVICES
     }
     for name in allowed:

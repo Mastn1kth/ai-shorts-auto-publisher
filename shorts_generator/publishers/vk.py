@@ -14,7 +14,10 @@ class VKPublisher:
 
     def __init__(self, access_token: Optional[str] = None, group_id: Optional[str] = None):
         self.access_token = access_token or get_secret("VK_ACCESS_TOKEN")
-        self.group_id = group_id or get_secret("VK_GROUP_ID")
+        # The desktop app targets the owner's personal VK Video profile.
+        # Keep the argument for CLI/API compatibility, but never inherit a
+        # previously saved community ID into a profile upload.
+        self.group_id = None
         self.api_version = os.getenv("VK_API_VERSION", "5.199")
         self.api_url = "https://api.vk.com/method/video.save"
 
@@ -33,7 +36,7 @@ class VKPublisher:
             "name": metadata["title"],
             "description": metadata.get("description", ""),
             "is_private": 1 if privacy_status == "private" else 0,
-            "wallpost": 1 if privacy_status == "public" and os.getenv("VK_PUBLISH_TO_WALL", "false").lower() == "true" else 0,
+            "wallpost": 0,
         }
         if self.group_id:
             params["group_id"] = self.group_id
