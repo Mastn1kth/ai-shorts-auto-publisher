@@ -37,6 +37,24 @@ def _ass_text(text: str) -> str:
     return r"\N".join(lines).replace("{", r"\{").replace("}", r"\}")
 
 
+def _karaoke_events(text: str, start: float, end: float) -> list[str]:
+    """Split a Whisper segment into short karaoke cues for readable captions."""
+    words = re.sub(r"\s+", " ", str(text or "")).strip().split(" ")
+    if not words:
+        return []
+    chunk_size = 5
+    total = max(0.05, end - start)
+    events = []
+    for offset in range(0, len(words), chunk_size):
+        chunk = words[offset:offset + chunk_size]
+        chunk_start = start + total * offset / len(words)
+        chunk_end = start + total * min(offset + len(chunk), len(words)) / len(words)
+        word_cs = max(1, int(round((chunk_end - chunk_start) * 100 / len(chunk))))
+        tagged = " ".join(f"{{\\k{word_cs}}}{word.replace('{', '').replace('}', '')}" for word in chunk)
+        events.append(f"Dialogue: 0,{_ass_time(chunk_start)},{_ass_time(chunk_end)},Default,,0,0,0,,{tagged}")
+    return events
+
+
 def write_ass_subtitles(transcript: dict, clip_start: float, clip_end: float, target: Path, style: str = "clean") -> bool:
     """Write segment subtitles clipped to the selected highlight window."""
     preset = VIDEO_STYLES.get(style, VIDEO_STYLES["clean"])
@@ -46,7 +64,7 @@ def write_ass_subtitles(transcript: dict, clip_start: float, clip_end: float, ta
         end = min(float(segment.get("end", 0)), float(clip_end)) - float(clip_start)
         if end <= start or not str(segment.get("text", "")).strip():
             continue
-        events.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{_ass_text(segment['text'])}")
+        events.extend(_karaoke_events(segment["text"], start, end))
     if not events:
         return False
     content = """[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Arial,{font_size},{primary},&H000000FF,{outline},{back},1,0,0,0,100,100,0,0,1,3,0,{alignment},45,45,{margin_v},1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n{events}\n""".format(events="\n".join(events), **preset)
@@ -100,6 +118,8 @@ def enhance_clip(
         audio_filters.extend([f"afade=t=in:st=0:d={fade_duration:.3f}", f"afade=t=out:st={max(0, duration - fade_duration):.3f}:d={fade_duration:.3f}"])
     if remove_silence:
         audio_filters.insert(0, "silenceremove=start_periods=1:start_duration=0.35:start_threshold=-35dB:stop_periods=1:stop_duration=0.45:stop_threshold=-35dB")
+    if audio_filters:
+        audio_filters.append("loudnorm=I=-16:TP=-1.5:LRA=11")
     intermediate = target.with_suffix(".enhanced.mp4") if music and music.is_file() else target
     command = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(source)]
     if video_filters:

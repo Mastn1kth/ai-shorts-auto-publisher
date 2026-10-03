@@ -16,8 +16,8 @@ class PostprocessTests(unittest.TestCase):
             self.assertTrue(ok)
             content = target.read_text(encoding="utf-8-sig")
             self.assertIn("Style: Default,Arial,58", content)
-            self.assertIn("0:00:00.00,0:00:03.00", content)
-            self.assertIn(r"Первое второе третье четвертое пятое\Nшестое", content)
+            self.assertIn("0:00:00.00,0:00:02.50", content)
+            self.assertIn(r"{\k50}Первое", content)
 
     def test_empty_transcript_does_not_create_subtitles(self):
         with tempfile.TemporaryDirectory() as directory:

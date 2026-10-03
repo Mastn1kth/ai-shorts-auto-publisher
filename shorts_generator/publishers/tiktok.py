@@ -4,12 +4,13 @@ import os
 from pathlib import Path
 
 import requests
+from .credentials import get_secret
 
 class TikTokPublisher:
     name = "tiktok"
 
     def __init__(self, access_token=None):
-        self.access_token = access_token or os.getenv("TIKTOK_ACCESS_TOKEN")
+        self.access_token = access_token or get_secret("TIKTOK_ACCESS_TOKEN") or os.getenv("TIKTOK_ACCESS_TOKEN")
 
     def publish(self, video_path, metadata, privacy_status="private", dry_run=False):
         if dry_run:

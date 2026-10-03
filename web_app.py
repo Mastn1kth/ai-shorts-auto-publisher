@@ -18,6 +18,7 @@ from flask import Flask, abort, jsonify, render_template, request, send_file
 from shorts_generator import generate_shorts
 from shorts_generator.local.llm import make_llm
 from shorts_generator.local.postprocess import VIDEO_STYLES, enhance_clip
+from shorts_generator.local.sequence import build_sequential_parts
 from shorts_generator.local.downloader import _extract_youtube_video_id
 from shorts_generator.publishers.service import validate_publish_request
 from shorts_generator.publishers.service import publish_shorts
@@ -97,8 +98,8 @@ def _queue_start(interval_minutes: int, start_at: str) -> str:
 def _thumbnail(video_path: str, target: Path) -> bool:
     try:
         subprocess.run(
-            ["ffmpeg", "-y", "-loglevel", "error", "-ss", "0.5", "-i", video_path,
-             "-frames:v", "1", "-vf", "scale=320:320:force_original_aspect_ratio=decrease", "-q:v", "4", str(target)],
+            ["ffmpeg", "-y", "-loglevel", "error", "-ss", "0.35", "-i", video_path,
+             "-frames:v", "1", "-vf", "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280", "-q:v", "4", str(target)],
             check=True, capture_output=True, timeout=60,
         )
         return target.is_file()
@@ -154,6 +155,15 @@ def _settings(form):
         raise ValueError("Громкость музыки должна быть числом") from exc
     if not 0 <= music_volume <= 1:
         raise ValueError("Громкость музыки должна быть от 0 до 1")
+    video_mode = form.get("video_mode", "highlights").strip().lower()
+    if video_mode not in {"highlights", "sequence"}:
+        raise ValueError("Неизвестный режим нарезки")
+    try:
+        part_duration = int(form.get("part_duration", "60"))
+    except ValueError as exc:
+        raise ValueError("Длительность части должна быть числом") from exc
+    if not 15 <= part_duration <= 600:
+        raise ValueError("Длительность части должна быть от 15 секунд до 10 минут")
     return {
         "provider": provider,
         "model": model,
@@ -171,6 +181,8 @@ def _settings(form):
         "smooth_edges": form.get("smooth_edges") == "on",
         "music_volume": music_volume,
         "approval_required": form.get("approval_required") == "on",
+        "video_mode": video_mode,
+        "part_duration": part_duration,
     }
 
 
@@ -193,13 +205,13 @@ def _run_job(job_id: str, settings: dict) -> None:
     try:
         _save_job(job)
         llm = make_llm(settings["provider"], settings["model"], settings["api_key"], settings["base_url"])
-        result = generate_shorts(
-            job["source"],
-            mode="local",
-            num_clips=settings["num_clips"],
-            llm_fn=llm,
-            output_dir=str(JOBS_DIR / job_id),
-        )
+        if settings.get("video_mode", "highlights") == "sequence":
+            result = build_sequential_parts(job["source"], settings["part_duration"], out_dir=str(JOBS_DIR / job_id))
+        else:
+            result = generate_shorts(
+                job["source"], mode="local", num_clips=settings["num_clips"], llm_fn=llm,
+                output_dir=str(JOBS_DIR / job_id), clip_duration=settings.get("part_duration"),
+            )
         transcript = result.get("transcript", {})
         for index, short in enumerate(result["shorts"]):
             if short.get("clip_url"):
