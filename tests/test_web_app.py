@@ -15,14 +15,14 @@ class WebAppTests(unittest.TestCase):
         self.client = web_app.app.test_client()
         web_app._jobs.clear()
         web_app._active_job = None
+        secret_patcher = patch.object(web_app, "get_secret", side_effect=lambda name: "private-key" if name == "OPENAI_API_KEY" else "")
+        secret_patcher.start()
+        self.addCleanup(secret_patcher.stop)
 
     def _post(self, **fields):
         form = {
             "csrf_token": web_app.CSRF_TOKEN,
             "video": (io.BytesIO(b"\x00\x00\x00\x18ftypisom"), "video.mp4"),
-            "provider": "openai",
-            "model": "test-model",
-            "api_key": "private-key",
             "num_clips": "1",
             "privacy": "private",
         }
@@ -50,9 +50,18 @@ class WebAppTests(unittest.TestCase):
                     args = thread.call_args.kwargs["args"]
                     self.assertEqual(args[1]["api_key"], "private-key")
 
-    def test_custom_api_rejects_non_https_remote_url(self):
-        response = self._post(provider="custom", base_url="http://example.com/v1")
+    def test_requires_configured_ai_key(self):
+        with patch.object(web_app, "get_secret", return_value=""):
+            response = self._post()
         self.assertEqual(response.status_code, 400)
+        self.assertIn("API-ключ", response.get_json()["error"])
+
+    def test_auto_selects_available_ai_key_without_form_choices(self):
+        from werkzeug.datastructures import MultiDict
+        with patch.object(web_app, "get_secret", side_effect=lambda name: "gemini-key" if name == "GEMINI_API_KEY" else ""):
+            settings = web_app._settings(MultiDict({"num_clips": "1", "privacy": "private"}))
+        self.assertEqual(settings["provider"], "gemini")
+        self.assertEqual(settings["model"], "gemini-2.5-flash")
 
     def test_accepts_youtube_url_without_upload(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -153,6 +162,14 @@ class WebAppTests(unittest.TestCase):
             })
         self.assertEqual(response.status_code, 200)
         saved.assert_called_once_with("VK_ACCESS_TOKEN", "secret")
+
+    def test_saving_ai_token_uses_keyring(self):
+        with patch.object(web_app, "save_secret") as saved:
+            response = self.client.post("/api/connections/tokens", data={
+                "csrf_token": web_app.CSRF_TOKEN, "GEMINI_API_KEY": "gemini-key",
+            })
+        self.assertEqual(response.status_code, 200)
+        saved.assert_called_once_with("GEMINI_API_KEY", "gemini-key")
 
     def test_youtube_oauth_client_file_is_validated(self):
         with tempfile.TemporaryDirectory() as directory:

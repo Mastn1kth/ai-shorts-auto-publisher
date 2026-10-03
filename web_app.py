@@ -39,7 +39,12 @@ if YOUTUBE_CLIENT_FILE.is_file():
 os.environ.setdefault("PUBLISH_LEDGER_FILE", str(DATA_ROOT / "publishing-ledger.json"))
 CSRF_TOKEN = secrets.token_urlsafe(32)
 MAX_UPLOAD_BYTES = 4 * 1024 * 1024 * 1024
-PROVIDERS = {"openai", "gemini", "openrouter", "groq", "custom"}
+AI_SERVICES = (
+    ("openai", "OPENAI_API_KEY", "OPENAI_MODEL", "gpt-4o-mini"),
+    ("gemini", "GEMINI_API_KEY", "GEMINI_MODEL", "gemini-2.5-flash"),
+    ("openrouter", "OPENROUTER_API_KEY", "OPENROUTER_MODEL", "openai/gpt-4o-mini"),
+    ("groq", "GROQ_API_KEY", "GROQ_MODEL", "openai/gpt-oss-20b"),
+)
 
 app = Flask(__name__, template_folder=str(ROOT / "web" / "templates"), static_folder=str(ROOT / "web" / "static"))
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
@@ -102,7 +107,7 @@ def _thumbnail(video_path: str, target: Path) -> bool:
 
 def _safe_error(error: Exception, submitted_key: str) -> str:
     message = str(error)
-    keys = [submitted_key] + [os.getenv(name, "") for name in (
+    keys = [submitted_key] + [get_secret(name) for name in (
         "OPENAI_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "GROQ_API_KEY",
         "VK_ACCESS_TOKEN", "TELEGRAM_BOT_TOKEN",
     )]
@@ -113,23 +118,12 @@ def _safe_error(error: Exception, submitted_key: str) -> str:
 
 
 def _settings(form):
-    provider = form.get("provider", "").strip().lower()
-    model = form.get("model", "").strip()
-    api_key = form.get("api_key", "").strip()
-    base_url = form.get("base_url", "").strip()
-    if provider not in PROVIDERS:
-        raise ValueError("Выберите поддерживаемый ИИ-сервис")
-    if not model or len(model) > 120:
-        raise ValueError("Укажите название модели (до 120 символов)")
-    if len(api_key) > 4096:
-        raise ValueError("API-ключ слишком длинный")
-    if provider == "custom":
-        parsed = urlparse(base_url)
-        local_http = parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
-        if (parsed.scheme != "https" and not local_http) or not parsed.netloc or parsed.username or parsed.password or parsed.query or parsed.fragment:
-            raise ValueError("Для своего API укажите HTTPS-адрес или локальный http://127.0.0.1")
-    else:
-        base_url = ""
+    selected = next(((provider, key, os.getenv(model_var, default).strip() or default)
+                     for provider, key_name, model_var, default in AI_SERVICES
+                     if (key := get_secret(key_name))), None)
+    if selected is None:
+        raise ValueError("Добавьте API-ключ ИИ в настройках")
+    provider, api_key, model = selected
     try:
         num_clips = int(form.get("num_clips", "3"))
     except ValueError as exc:
@@ -154,7 +148,7 @@ def _settings(form):
         "provider": provider,
         "model": model,
         "api_key": api_key,
-        "base_url": base_url,
+        "base_url": "",
         "num_clips": num_clips,
         "platforms": platforms,
         "privacy": privacy,
@@ -287,6 +281,7 @@ def restore_jobs() -> None:
 
 def _connection_status() -> dict:
     return {
+        "ai_saved": {provider: bool(get_secret(key_name)) for provider, key_name, _, _ in AI_SERVICES},
         "youtube_client_ready": Path(os.getenv("YOUTUBE_CLIENT_SECRET_FILE", "client_secret.json")).is_file(),
         "youtube_token_ready": Path(os.getenv("YOUTUBE_TOKEN_FILE", "youtube-token.json")).is_file(),
         "youtube_auth": dict(_oauth_state),
@@ -315,7 +310,9 @@ def get_connections():
 def save_connections():
     if request.form.get("csrf_token") != CSRF_TOKEN:
         return jsonify(error="Недействительный запрос. Обновите страницу."), 403
-    allowed = {"VK_ACCESS_TOKEN", "VK_GROUP_ID", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"}
+    allowed = {"VK_ACCESS_TOKEN", "VK_GROUP_ID", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"} | {
+        key_name for _, key_name, _, _ in AI_SERVICES
+    }
     for name in allowed:
         value = request.form.get(name, "").strip()
         if len(value) > 4096 or "\n" in value or "\r" in value:
