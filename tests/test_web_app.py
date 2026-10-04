@@ -66,6 +66,37 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("API-ключ", response.get_json()["error"])
 
+    def test_sequence_mode_does_not_require_ai_key(self):
+        from werkzeug.datastructures import MultiDict
+        with patch.object(web_app, "get_secret", return_value=""):
+            settings = web_app._settings(MultiDict({"video_mode": "sequence", "part_duration": "60"}))
+        self.assertIsNone(settings["api_key"])
+        self.assertIsNone(settings["provider"])
+
+    def test_sequence_job_never_initializes_llm(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(web_app, "JOBS_DIR", Path(directory)):
+                job_id = "sequence-job"
+                folder = Path(directory) / job_id
+                folder.mkdir()
+                video = folder / "part_01.mp4"
+                video.write_bytes(b"fake")
+                web_app._jobs[job_id] = {"id": job_id, "source": str(folder / "source.mp4"), "status": "queued", "shorts": []}
+                settings = {
+                    "video_mode": "sequence", "part_duration": 60, "provider": None,
+                    "model": None, "api_key": None, "platforms": [], "privacy": "private",
+                    "dry_run": True, "interval_minutes": 60, "start_at": "",
+                }
+                result = {"shorts": [{"clip_url": str(video), "title": "Part 1"}]}
+                with patch.object(web_app, "make_llm") as make_llm:
+                    with patch.object(web_app, "build_sequential_parts", return_value=result) as build:
+                        with patch.object(web_app, "enhance_clip", return_value={"enhanced": False}):
+                            with patch.object(web_app, "_thumbnail", return_value=False):
+                                web_app._run_job(job_id, settings)
+                self.assertEqual(web_app._jobs[job_id]["status"], "completed")
+                make_llm.assert_not_called()
+                build.assert_called_once()
+
     def test_auto_selects_available_ai_key_without_form_choices(self):
         from werkzeug.datastructures import MultiDict
         with patch.object(web_app, "get_secret", side_effect=lambda name: "gemini-key" if name == "GEMINI_API_KEY" else ""):

@@ -8,6 +8,17 @@ from threading import Thread
 
 from werkzeug.serving import make_server
 
+
+def _configure_output() -> None:
+    # Windowed Windows builds may inherit a legacy console encoding. Titles and
+    # paths from YouTube must never abort a video job when logged.
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
+
+
+_configure_output()
+
 from web_app import app, restore_jobs
 
 

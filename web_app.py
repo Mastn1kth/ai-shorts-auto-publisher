@@ -120,12 +120,15 @@ def _safe_error(error: Exception, submitted_key: str) -> str:
 
 
 def _settings(form):
+    video_mode = form.get("video_mode", "highlights").strip().lower()
+    if video_mode not in {"highlights", "sequence"}:
+        raise ValueError("Неизвестный режим нарезки")
     selected = next(((provider, key, os.getenv(model_var, default).strip() or default)
                      for provider, key_name, model_var, default in AI_SERVICES
                      if (key := get_secret(key_name))), None)
-    if selected is None:
+    if selected is None and video_mode == "highlights":
         raise ValueError("Добавьте API-ключ ИИ в настройках")
-    provider, api_key, model = selected
+    provider, api_key, model = selected if selected else (None, None, None)
     try:
         num_clips = int(form.get("num_clips", "3"))
     except ValueError as exc:
@@ -155,9 +158,6 @@ def _settings(form):
         raise ValueError("Громкость музыки должна быть числом") from exc
     if not 0 <= music_volume <= 1:
         raise ValueError("Громкость музыки должна быть от 0 до 1")
-    video_mode = form.get("video_mode", "highlights").strip().lower()
-    if video_mode not in {"highlights", "sequence"}:
-        raise ValueError("Неизвестный режим нарезки")
     try:
         part_duration = int(form.get("part_duration", "60"))
     except ValueError as exc:
@@ -204,10 +204,10 @@ def _run_job(job_id: str, settings: dict) -> None:
     job["status"] = "running"
     try:
         _save_job(job)
-        llm = make_llm(settings["provider"], settings["model"], settings["api_key"], settings["base_url"])
         if settings.get("video_mode", "highlights") == "sequence":
             result = build_sequential_parts(job["source"], settings["part_duration"], out_dir=str(JOBS_DIR / job_id))
         else:
+            llm = make_llm(settings["provider"], settings["model"], settings["api_key"], settings["base_url"])
             result = generate_shorts(
                 job["source"], mode="local", num_clips=settings["num_clips"], llm_fn=llm,
                 output_dir=str(JOBS_DIR / job_id), clip_duration=settings.get("part_duration"),
@@ -261,7 +261,7 @@ def _run_job(job_id: str, settings: dict) -> None:
         if settings["platforms"] and not settings.get("approval_required", False):
             Thread(target=_publish_job, args=(job_id,), daemon=True).start()
     except Exception as exc:
-        job["error"] = _safe_error(exc, settings["api_key"])
+        job["error"] = _safe_error(exc, settings.get("api_key") or "")
         job["status"] = "failed"
         _save_job(job)
     finally:
