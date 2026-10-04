@@ -8,6 +8,7 @@ Two stages per highlight:
 """
 import os
 import subprocess
+import time
 from typing import Dict, List, Optional, Tuple
 
 from ..config import LOCAL_OUTPUT_DIR
@@ -66,7 +67,11 @@ def _reframe_vertical(in_path: str, out_path: str, aspect_ratio: str) -> str:
     crop_w = max(2, crop_w - (crop_w % 2))
     crop_h = max(2, crop_h - (crop_h % 2))
 
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    face_cascade = None
+    if hasattr(cv2, "CascadeClassifier") and hasattr(cv2, "data"):
+        candidate = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+        if not candidate.empty():
+            face_cascade = candidate
 
     silent_path = out_path + ".silent.mp4"
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
@@ -74,37 +79,42 @@ def _reframe_vertical(in_path: str, out_path: str, aspect_ratio: str) -> str:
 
     last_center: Optional[Tuple[int, int]] = None
     smoothing = 0.15  # how aggressively to chase a new face position
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
+    if not writer.isOpened():
+        cap.release()
+        raise RuntimeError(f"could not create {silent_path}")
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(40, 40))
-        if len(faces) > 0:
-            # Pick the largest face — usually the speaker.
-            x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
-            cx = x + w // 2
-            cy = y + h // 2
+            if face_cascade is not None:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(40, 40))
+                if len(faces) > 0:
+                    # Pick the largest face — usually the speaker.
+                    x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+                    cx = x + w // 2
+                    cy = y + h // 2
+                    if last_center is None:
+                        last_center = (cx, cy)
+                    else:
+                        lx, ly = last_center
+                        last_center = (
+                            int(lx + (cx - lx) * smoothing),
+                            int(ly + (cy - ly) * smoothing),
+                        )
             if last_center is None:
-                last_center = (cx, cy)
-            else:
-                lx, ly = last_center
-                last_center = (
-                    int(lx + (cx - lx) * smoothing),
-                    int(ly + (cy - ly) * smoothing),
-                )
-        if last_center is None:
-            last_center = (src_w // 2, src_h // 2)
+                last_center = (src_w // 2, src_h // 2)
 
-        cx, cy = last_center
-        x0 = max(0, min(src_w - crop_w, cx - crop_w // 2))
-        y0 = max(0, min(src_h - crop_h, cy - crop_h // 2))
-        cropped = frame[y0:y0 + crop_h, x0:x0 + crop_w]
-        writer.write(cropped)
-
-    cap.release()
-    writer.release()
+            cx, cy = last_center
+            x0 = max(0, min(src_w - crop_w, cx - crop_w // 2))
+            y0 = max(0, min(src_h - crop_h, cy - crop_h // 2))
+            cropped = frame[y0:y0 + crop_h, x0:x0 + crop_w]
+            writer.write(cropped)
+    finally:
+        cap.release()
+        writer.release()
 
     # Mux audio from the cut clip back onto the silent reframed video.
     cmd = [
@@ -136,7 +146,17 @@ def crop_clip_local(
         _reframe_vertical(cut_path, out_path, aspect_ratio)
     finally:
         if os.path.exists(cut_path):
-            os.remove(cut_path)
+            for attempt in range(5):
+                try:
+                    os.remove(cut_path)
+                    break
+                except PermissionError:
+                    if attempt < 4:
+                        time.sleep(0.2)
+                    elif not os.path.exists(out_path):
+                        raise
+                    # A finished clip is still usable if Windows has not yet
+                    # released a decoder handle on its temporary input.
     return out_path
 
 
